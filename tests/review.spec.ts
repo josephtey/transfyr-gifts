@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { loadEnvFile } from "node:process";
 import { readFileSync } from "node:fs";
 import type { Session } from "../src/lib/types";
-import { countFindings } from "../src/lib/findings";
+import { countFindings, buildTimelineMarkers } from "../src/lib/findings";
 loadEnvFile(".env.local");
 const base = process.env.TEST_BASE_URL || "http://localhost:3000";
 const data: Session = JSON.parse(readFileSync("src/data/session.json", "utf8"));
@@ -14,9 +14,9 @@ async function login(
   await page
     .getByLabel("Access password")
     .fill(process.env.CUSTOMER_PASSWORD_GENENTECH!);
-  await page.getByRole("button", { name: "Open your review" }).click();
+  await page.getByLabel("Access password").press("Enter");
   await expect(
-    page.getByRole("heading", { name: "Genentech / Calibration" }),
+    page.getByRole("button", { name: "Major findings" }),
   ).toBeVisible();
 }
 test("password and private evidence protections work, including deep links", async ({
@@ -43,14 +43,19 @@ test("password and private evidence protections work, including deep links", asy
   );
   await page.goto(base + "/genentech?t=394");
   await page.getByLabel("Access password").fill("wrong-password");
-  await page.getByRole("button", { name: "Open your review" }).click();
-  await expect(page.locator(".form-error[role=alert]")).toContainText(
-    "doesn’t match",
+  await page.getByLabel("Access password").press("Enter");
+  await expect(page.getByLabel("Access password")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  await expect(page.getByLabel("Access password")).toHaveAttribute(
+    "placeholder",
+    "Incorrect password",
   );
   await page
     .getByLabel("Access password")
     .fill(process.env.CUSTOMER_PASSWORD_GENENTECH!);
-  await page.getByRole("button", { name: "Open your review" }).click();
+  await page.getByLabel("Access password").press("Enter");
   await expect
     .poll(() =>
       page.locator("video").evaluate((v: HTMLVideoElement) => v.currentTime),
@@ -211,6 +216,8 @@ test("one timeline connects every finding and keeps AI records separate from hum
     ),
   ).toHaveCount(2);
   await expect(page.locator(".insight-overlay")).toBeVisible();
+  await expect(page.locator(".insight-description")).toHaveText(issue.description);
+  await expect(page.getByRole("button", { name: "Dismiss insight" })).toHaveCount(0);
   const playbackTime = await page
     .locator("video")
     .evaluate((v: HTMLVideoElement) => v.currentTime);
@@ -233,11 +240,8 @@ test("one timeline connects every finding and keeps AI records separate from hum
     )
     .toBeCloseTo(playbackTime, 0);
   const focus = data.actions.find((a) => a.id === "ai-44")!;
-  await expect(
-    page.locator('a[aria-label="Download action clip"]'),
-  ).toHaveAttribute(
-    "href",
-    `/media/genentech/clips/${focus.clipFile}?download=1`,
+  await expect(page.locator('a[download], a[href*="download="]')).toHaveCount(
+    0,
   );
   await expect(
     page.getByRole("button", { name: "Play action", exact: true }),
@@ -351,19 +355,44 @@ test("one timeline connects every finding and keeps AI records separate from hum
   await expect
     .poll(() => page.locator(".evidence-link").count())
     .toBe(expectedLinks.length);
-  await page.getByRole("button", { name: "Lock review" }).click();
-  await expect(page.getByLabel("Access password")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Lock review" })).toHaveCount(
+    0,
+  );
   expect(errors).toEqual([]);
 });
 
-test("steps start collapsed with counts and durations, and both step controls seek", async ({
+test("steps start expanded at the first major error, and both step controls seek", async ({
   page,
 }) => {
   await login(page);
-  await expect(page.locator('.step-toggle[aria-expanded="false"]')).toHaveCount(
+  await expect(page.locator('.step-toggle[aria-expanded="true"]')).toHaveCount(
     data.steps.length,
   );
-  await expect(page.locator(".record-step-body:visible")).toHaveCount(0);
+  await expect(page.locator(".record-step-body:visible")).toHaveCount(
+    data.steps.length,
+  );
+  const firstError = buildTimelineMarkers(
+    data.issues.filter((i) => i.tier === "major"),
+    data.reviews,
+    data.steps,
+  ).find((marker) => marker.kind === "error")!;
+  await expect
+    .poll(() =>
+      page.locator("video").evaluate((v: HTMLVideoElement) => v.currentTime),
+    )
+    .toBeCloseTo(firstError.start, 1);
+  expect(
+    await page.locator("video").evaluate((v: HTMLVideoElement) => v.paused),
+  ).toBe(true);
+  await expect(
+    page.getByRole("slider", { name: "Seek recording" }),
+  ).toHaveValue(String(firstError.start));
+  await expect(
+    page.locator(`[data-id="${firstError.actionId}"] .log-action`),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".insight-overlay")).toContainText(
+    data.issues.find((i) => i.id === firstError.issueIds[0])!.title,
+  );
   const format = (n: number) =>
     `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, "0")}`;
   for (const step of data.steps) {
@@ -391,9 +420,12 @@ test("steps start collapsed with counts and durations, and both step controls se
         "No recorded actions identified",
       );
   }
-  await page
-    .getByRole("button", { name: "Expand Tube arrangement", exact: true })
-    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Collapse Tube arrangement",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-expanded", "true");
   await expect(
     page.locator('[data-step="arrangement"] .issue-trigger'),
   ).toHaveCount(0);
@@ -414,9 +446,15 @@ test("steps start collapsed with counts and durations, and both step controls se
     });
   expect(headerPlacement).toBe(true);
   await page.screenshot({
-    path: "/tmp/transfyr-collapsed-steps.png",
+    path: "/tmp/transfyr-expanded-start.png",
     fullPage: true,
   });
+  await page
+    .getByRole("button", { name: "Collapse Calibration 1", exact: true })
+    .click();
+  await expect(
+    page.locator('[data-step="calibration-1"] .record-step-body'),
+  ).toBeHidden();
   await page
     .getByRole("button", { name: "Expand Calibration 1", exact: true })
     .click();
@@ -476,10 +514,13 @@ test("major and minor tiers can be selected independently, with only major on in
   await expect(minorToggle).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByText("reviewed error notes")).toHaveCount(0);
   await expect(page.locator(".tier-filters")).toBeVisible();
-  for (const step of data.steps)
-    await page
-      .getByRole("button", { name: `Expand ${step.name}`, exact: true })
-      .click();
+  for (const step of data.steps) {
+    const expand = page.getByRole("button", {
+      name: `Expand ${step.name}`,
+      exact: true,
+    });
+    if (await expand.count()) await expand.click();
+  }
   const assertTier = async (tier: "major" | "minor", visible: boolean) => {
     for (const issue of data.issues.filter((i) => i.tier === tier)) {
       const cards = page.locator(`[data-issue="${issue.id}"]`);
@@ -541,10 +582,13 @@ test("category colors stay consistent through hover, selection, playback and con
   page,
 }) => {
   await login(page);
-  for (const step of data.steps)
-    await page
-      .getByRole("button", { name: `Expand ${step.name}`, exact: true })
-      .click();
+  for (const step of data.steps) {
+    const expand = page.getByRole("button", {
+      name: `Expand ${step.name}`,
+      exact: true,
+    });
+    if (await expand.count()) await expand.click();
+  }
   const colors = {
     error: "rgb(240, 128, 128)",
     risk: "rgb(237, 204, 103)",
@@ -582,6 +626,9 @@ test("category colors stay consistent through hover, selection, playback and con
     await expect(page.locator(".insight-overlay")).toHaveCSS(
       "border-left-color",
       expected,
+    );
+    await expect(page.locator(".insight-description")).toHaveText(
+      data.issues.find((issue) => issue.id === id)!.description,
     );
   }
   await page.screenshot({
@@ -646,4 +693,116 @@ test("scrubber includes every visible category with consistent colors and tier f
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("an explicit beginning timestamp overrides the default first-error position", async ({
+  page,
+}) => {
+  await login(page, "/genentech?t=0");
+  await expect
+    .poll(() =>
+      page.locator("video").evaluate((v: HTMLVideoElement) => v.currentTime),
+    )
+    .toBe(0);
+  await expect(
+    page.getByRole("slider", { name: "Seek recording" }),
+  ).toHaveValue("0");
+  await expect(page.locator('.step-toggle[aria-expanded="true"]')).toHaveCount(
+    data.steps.length,
+  );
+  await expect(page.locator(".insight-overlay")).toHaveCount(0);
+  await expect(page.locator(".action-caption")).toHaveText(data.actions[0].text);
+  const captionBounds = await page.locator(".action-caption").boundingBox();
+  const videoBounds = await page.locator(".video-surface").boundingBox();
+  expect(captionBounds!.y - videoBounds!.y).toBe(12);
+  expect(captionBounds!.y + captionBounds!.height).toBeLessThan(
+    videoBounds!.y + videoBounds!.height,
+  );
+  await page.locator("video").evaluate((video: HTMLVideoElement) => {
+    video.currentTime = 66;
+  });
+  await expect(page.locator(".action-caption")).toHaveCount(0);
+  await page.locator("video").evaluate((video: HTMLVideoElement) => {
+    video.currentTime = 68;
+  });
+  await expect(page.locator(".action-caption")).toHaveText(data.actions[2].text);
+});
+
+test("access is a single password field and the review has no branding or sharing controls", async ({
+  page,
+}) => {
+  await page.goto(base + "/genentech");
+  await expect(page.locator("main input:visible")).toHaveCount(1);
+  await expect(
+    page.locator(
+      "main button, main a, main h1, main p, main label, main footer",
+    ),
+  ).toHaveCount(0);
+  await expect(page.locator("main")).toHaveText("");
+  await expect(page).toHaveTitle("Calibration review");
+  await page.screenshot({
+    path: "/tmp/transfyr-access-minimal.png",
+    fullPage: true,
+  });
+  await page
+    .getByLabel("Access password")
+    .fill(process.env.CUSTOMER_PASSWORD_GENENTECH!);
+  await page.getByLabel("Access password").press("Enter");
+  await expect(
+    page.getByRole("button", { name: "Major findings" }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".wordmark,.header-tools,.header-divider"),
+  ).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(/transfyr|genentech/i);
+  await expect(
+    page.getByRole("button", { name: /download|copy.*link|lock review|exit/i }),
+  ).toHaveCount(0);
+  await expect(page.locator('a[download],a[href*="download="]')).toHaveCount(0);
+  for (const path of [
+    "/media/genentech/original.mp4?download=1",
+    "/api/media/genentech/original.mp4?download=1",
+  ]) {
+    expect((await page.context().request.get(base + path)).status()).toBe(404);
+  }
+});
+
+test("expanding a different step scrolls to that step instead of the selected action", async ({
+  page,
+}) => {
+  await login(page);
+  const initialTime = await page
+    .locator("video")
+    .evaluate((v: HTMLVideoElement) => v.currentTime);
+  const step = page.locator('[data-step="calibration-3"]');
+  await page
+    .getByRole("button", { name: "Collapse Calibration 3", exact: true })
+    .click();
+  await expect(step.locator(".record-step-body")).toBeHidden();
+  await page
+    .getByRole("button", { name: "Expand Calibration 3", exact: true })
+    .click();
+  await expect(step.locator(".record-step-body")).toBeVisible();
+  await expect
+    .poll(() =>
+      step.evaluate((el) => {
+        const viewport = el
+          .closest(".evidence-scroll")!
+          .getBoundingClientRect();
+        return Math.abs(el.getBoundingClientRect().top - viewport.top);
+      }),
+    )
+    .toBeLessThan(2);
+  expect(
+    await page
+      .locator("video")
+      .evaluate((v: HTMLVideoElement) => v.currentTime),
+  ).toBeCloseTo(initialTime, 1);
+  expect(
+    await page.locator("video").evaluate((v: HTMLVideoElement) => v.paused),
+  ).toBe(true);
+  await page.screenshot({
+    path: "/tmp/transfyr-expanded-scroll.png",
+    fullPage: true,
+  });
 });

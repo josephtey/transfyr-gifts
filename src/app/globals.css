@@ -381,12 +381,6 @@ time,
   background: #c8b179;
   border-radius: 50%;
 }
-.insight-overlay button {
-  margin-left: auto;
-  color: #83907b;
-  padding: 0;
-  display: flex;
-}
 .insight-overlay p {
   font-size: 12px;
   line-height: 1.7;
@@ -1692,18 +1686,29 @@ time,
   box-shadow: none;
   background: #ffffff03;
 }
-.video-annotation .action-caption {
-  position: static;
-  margin: 0;
-  padding: 0 2px;
-  width: auto;
-  max-width: none;
-  background: none;
-  color: #99a49c;
-  text-shadow: none;
-  transform: none;
+.video-annotation .insight-description {
+  color: #a6b0aa;
   font-size: 12px;
   line-height: 1.7;
+  max-width: none;
+  margin: 7px 0 0;
+}
+.video-surface .action-caption {
+  top: 12px;
+  bottom: auto;
+  left: 12px;
+  right: 12px;
+  z-index: 1;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  margin: 0 auto;
+  padding: 9px 12px;
+  transform: none;
+  background: #101713e6;
+  box-shadow: 0 0 0 1px #ffffff12;
+  color: #f0f3ef;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 /* Traces lead the eye from recorded action to finding without moving anchors. */
@@ -2122,4 +2127,33 @@ time,
   .step-jump {
     font-size: 11px;
   }
+}
+
+/* The entry screen contains only the password field. */
+.access-page {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.access-form {
+  width: min(100%, 300px);
+}
+.access-form input[type="password"] {
+  width: 100%;
+  padding: 15px 17px;
+  border: 1px solid #ffffff20;
+  border-radius: 6px;
+  background: #ffffff03;
+  color: #e0e5e1;
+  font-size: 14px;
+}
+.access-form input::placeholder {
+  color: #7f8983;
+}
+.access-form input[aria-invalid="true"] {
+  border-color: var(--error);
+}
+.access-form input[aria-invalid="true"]::placeholder {
+  color: var(--error);
 }

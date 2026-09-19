@@ -37,25 +37,14 @@ export async function GET(
   });
   // Signed URLs are scoped to exactly one file and expire in one hour. The CDN
   // handles byte-range requests, so scrubbing never buffers a whole MP4 in a function.
-  if (request.nextUrl.searchParams.get("download") !== "1")
-    return new NextResponse(null, {
-      status: 307,
-      headers: {
-        Location: presignedUrl,
-        "Cache-Control": "private, no-store",
-        "Referrer-Policy": "no-referrer",
-      },
-    });
-  const upstream = await fetch(presignedUrl, { signal: request.signal });
-  if (!upstream.ok)
-    return new NextResponse("Recording unavailable", {
-      status: upstream.status,
-    });
-  return new NextResponse(upstream.body, {
+  if (request.nextUrl.searchParams.has("download"))
+    return new NextResponse("Not found", { status: 404 });
+  return new NextResponse(null, {
+    status: 307,
     headers: {
-      "Content-Type": "video/mp4",
-      "Content-Disposition": `attachment; filename="${customer}-${asset.at(-1)}"`,
+      Location: presignedUrl,
       "Cache-Control": "private, no-store",
+      "Referrer-Policy": "no-referrer",
     },
   });
 }

@@ -7,12 +7,6 @@ import {
   VolumeX,
   Maximize,
   Scan,
-  X,
-  Download,
-  LogOut,
-  MoreHorizontal,
-  Link as LinkIcon,
-  Check,
   ChevronDown,
 } from "lucide-react";
 import type { Session, Action, Issue, RecordStep } from "../lib/types";
@@ -32,6 +26,7 @@ export default function Review({
   const video = useRef<HTMLVideoElement>(null);
   const player = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
+  const manualStepScroll = useRef<string | null>(null);
   const pending = useRef<{ time: number; playing: boolean } | null>(null);
   const clipEnd = useRef<number | null>(null);
   const [time, setTime] = useState(0);
@@ -41,13 +36,9 @@ export default function Review({
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [hoveredIssueId, setHoveredIssueId] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [collapsedSteps, setCollapsedSteps] = useState(
-    () => new Set(session.steps.map((step) => step.id)),
-  );
+  const [collapsedSteps, setCollapsedSteps] = useState(() => new Set<string>());
   const [hasNavigated, setHasNavigated] = useState(false);
   const [selectedTiers, setSelectedTiers] = useState<Set<Issue["tier"]>>(
     () => new Set(["major"]),
@@ -55,6 +46,15 @@ export default function Review({
   const visibleIssues = useMemo(
     () => session.issues.filter((issue) => selectedTiers.has(issue.tier)),
     [session.issues, selectedTiers],
+  );
+  const firstMajorError = useMemo(
+    () =>
+      buildTimelineMarkers(
+        session.issues.filter((issue) => issue.tier === "major"),
+        session.reviews,
+        session.steps,
+      ).find((marker) => marker.kind === "error"),
+    [session],
   );
   const tierCounts = useMemo(
     () =>
@@ -97,7 +97,6 @@ export default function Review({
     : selected
       ? actionById.get(selected)
       : activeAction;
-  const downloadAction = (selected && actionById.get(selected)) || focusAction;
   const chosenIssue = visibleIssues.find((i) => i.id === selectedIssueId);
   const highlightedIssue = visibleIssues.find(
     (i) => i.id === (hoveredIssueId || selectedIssueId),
@@ -117,7 +116,6 @@ export default function Review({
     primaryIssues[0];
   const overlayVisible =
     overlayIssue &&
-    overlayIssue.id !== dismissed &&
     (!chosenIssue || linkedActions.has(selected || focusAction?.id || ""));
   const markers = useMemo(
     () => buildTimelineMarkers(visibleIssues, session.reviews, session.steps),
@@ -129,7 +127,6 @@ export default function Review({
     setHasNavigated(true);
     setTime(target);
     setError("");
-    setDismissed(null);
     if (video.current) {
       video.current.currentTime = target;
       if (play)
@@ -160,57 +157,48 @@ export default function Review({
     setError("");
     setMode(mode === "original" ? "overlay" : "original");
   }
-  function selectAction(
-    action: Action,
-    preserveIssue = false,
-    timestamp = action.start,
-  ) {
-    video.current?.pause();
-    setSelected(action.id);
-    if (!preserveIssue) setSelectedIssueId(null);
-    seek(timestamp);
-  }
   function watchAction(action: Action, preserveIssue = false) {
     setSelected(action.id);
     if (!preserveIssue) setSelectedIssueId(null);
     clipEnd.current = action.clipEnd ?? action.end + 3;
     seek(action.clipStart ?? Math.max(0, action.start - 3), true, true);
   }
-  async function share() {
-    const url = new URL(window.location.href);
-    url.searchParams.set("t", String(Math.floor(time)));
-    if (selected) url.searchParams.set("action", selected);
-    else url.searchParams.delete("action");
-    if (selectedIssueId) url.searchParams.set("issue", selectedIssueId);
-    else url.searchParams.delete("issue");
-    try {
-      await navigator.clipboard.writeText(url.toString());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      window.history.replaceState(null, "", url);
-      setError("Copy the page address to share this moment.");
-    }
-  }
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    const t = Number(q.get("t"));
-    if (Number.isFinite(t) && t > 0) {
-      pending.current = { time: Math.min(duration, t), playing: false };
-      setHasNavigated(true);
-      setTime(Math.min(duration, t));
-      if (video.current && video.current.readyState >= 1) {
-        video.current.currentTime = Math.min(duration, t);
-        pending.current = null;
-      }
-    }
-    if (actionById.has(q.get("action") || "")) setSelected(q.get("action"));
+    const timestamp = q.get("t");
+    const t = Number(timestamp);
+    const hasTimestamp =
+      timestamp !== null &&
+      timestamp.trim() !== "" &&
+      Number.isFinite(t) &&
+      t >= 0;
+    const linkedAction = actionById.get(q.get("action") || "");
     const linkedIssue = session.issues.find((i) => i.id === q.get("issue"));
+    const entry = linkedIssue
+      ? buildTimelineMarkers([linkedIssue], session.reviews, session.steps)[0]
+      : firstMajorError;
+    const target = Math.min(
+      duration,
+      hasTimestamp ? t : (linkedAction?.start ?? entry?.start ?? 0),
+    );
+    pending.current = { time: target, playing: false };
+    setHasNavigated(true);
+    setTime(target);
+    if (video.current && video.current.readyState >= 1) {
+      video.current.currentTime = target;
+      pending.current = null;
+    }
+    setSelected(
+      linkedAction?.id ?? (!hasTimestamp ? (entry?.actionId ?? null) : null),
+    );
+    setSelectedIssueId(
+      linkedIssue?.id ??
+        (!hasTimestamp && !linkedAction ? (entry?.issueIds[0] ?? null) : null),
+    );
     if (linkedIssue) {
-      setSelectedIssueId(linkedIssue.id);
       setSelectedTiers((previous) => new Set([...previous, linkedIssue.tier]));
     }
-  }, [duration, actionById, session.issues]);
+  }, [duration, actionById, session, firstMajorError]);
   const followedActionId = playing
     ? activeAction?.id
     : selected || activeAction?.id;
@@ -227,6 +215,21 @@ export default function Review({
     });
   }, [followedStepId, followedActionId, playing, hasNavigated]);
   useEffect(() => {
+    if (manualStepScroll.current && list.current) {
+      const step = list.current.querySelector<HTMLElement>(
+        `[data-step="${manualStepScroll.current}"]`,
+      );
+      manualStepScroll.current = null;
+      if (step)
+        list.current.scrollTo({
+          top:
+            list.current.scrollTop +
+            step.getBoundingClientRect().top -
+            list.current.getBoundingClientRect().top,
+          behavior: "instant",
+        });
+      return;
+    }
     const id = playing ? activeAction?.id : selected || activeAction?.id;
     if (
       !id ||
@@ -297,6 +300,7 @@ export default function Review({
     return () => window.removeEventListener("keydown", handler);
   }, []);
   function toggleStep(id: string) {
+    manualStepScroll.current = id;
     setCollapsedSteps((previous) => {
       const next = new Set(previous);
       if (next.has(id)) next.delete(id);
@@ -404,15 +408,6 @@ export default function Review({
   return (
     <div className="review-app">
       <header className="app-header">
-        <a className="wordmark" href={`/${slug}`}>
-          transfyr
-          <span />
-        </a>
-        <span className="header-divider" />
-        <h1>
-          {session.customer}
-          <span> / Calibration</span>
-        </h1>
         <div
           className="tier-filters"
           role="group"
@@ -433,7 +428,6 @@ export default function Review({
                 });
                 setSelectedIssueId(null);
                 setHoveredIssueId(null);
-                setDismissed(null);
               }}
             >
               <strong>{tierCounts[tier]}</strong>
@@ -442,48 +436,6 @@ export default function Review({
               </span>
             </button>
           ))}
-        </div>
-        <div className="header-tools">
-          <details className="more-menu">
-            <summary aria-label="Recording options">
-              <MoreHorizontal size={19} />
-            </summary>
-            <div>
-              <button onClick={share}>
-                {copied ? <Check size={14} /> : <LinkIcon size={14} />}{" "}
-                {copied ? "Copied" : "Copy moment link"}
-              </button>
-              {downloadAction?.clipFile && (
-                <a
-                  href={`/media/${slug}/clips/${downloadAction.clipFile}?download=1`}
-                  download
-                  aria-label="Download action clip"
-                >
-                  <Download size={14} />
-                  Current action clip
-                </a>
-              )}
-              <a href={`/media/${slug}/original.mp4?download=1`} download>
-                <Download size={14} />
-                Original recording
-              </a>
-              <a href={`/media/${slug}/overlay.mp4?download=1`} download>
-                <Download size={14} />
-                Perception recording
-              </a>
-            </div>
-          </details>
-          <form action="/api/access" method="post">
-            <input type="hidden" name="customer" value={slug} />
-            <input type="hidden" name="logout" value="1" />
-            <button
-              className="icon-button"
-              title="Lock review"
-              aria-label="Lock review"
-            >
-              <LogOut size={16} />
-            </button>
-          </form>
         </div>
       </header>
       <main className="workspace">
@@ -509,6 +461,7 @@ export default function Review({
                 ref={video}
                 src={`/media/${slug}/${mode}.mp4`}
                 poster={`/frames/${slug}/poster.jpg`}
+                controlsList="nodownload"
                 playsInline
                 preload="metadata"
                 muted={muted}
@@ -544,6 +497,11 @@ export default function Review({
                   }
                 }}
               />
+              {activeAction && (
+                <p className="action-caption" aria-label="Current action">
+                  {activeAction.text}
+                </p>
+              )}
               {!playing && !loading && (
                 <button
                   className="big-play"
@@ -712,18 +670,10 @@ export default function Review({
                     {tierLabel[overlayIssue.tier]} ·{" "}
                     {kindLabel[overlayIssue.kind]} · {overlayIssue.category}
                   </span>
-                  <button
-                    aria-label="Dismiss insight"
-                    onClick={() => setDismissed(overlayIssue.id)}
-                  >
-                    <X size={13} />
-                  </button>
                 </div>
                 <p>{overlayIssue.title}</p>
+                <p className="insight-description">{overlayIssue.description}</p>
               </div>
-            )}
-            {!overlayVisible && activeAction && (
-              <p className="action-caption">{activeAction.text}</p>
             )}
           </div>
           {error && (

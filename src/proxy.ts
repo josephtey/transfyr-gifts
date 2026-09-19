@@ -50,6 +50,8 @@ export async function proxy(request: NextRequest) {
     url.searchParams.set("next", path + request.nextUrl.search);
     return NextResponse.redirect(url);
   }
+  if (media && request.nextUrl.searchParams.has("download"))
+    return new NextResponse("Not found", { status: 404 });
   if (
     (parts[0] === "media" || parts[0] === "frames") &&
     process.env.BLOB_MEDIA === "1"
