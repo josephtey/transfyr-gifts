@@ -1,0 +1,16 @@
+genentech/
+.git/
+node_modules/
+tests/
+skills/
+
+public/media/
+src/data/session.json
+review/
+.env*
+.next/
+test-results/
+
+scripts/
+
+public/frames/

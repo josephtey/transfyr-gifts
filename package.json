@@ -1,0 +1,28 @@
+{
+  "name": "transfyr-gifts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.0",
+    "jose": "^6.2.12",
+    "lucide-react": "^0.468.0",
+    "next": "^16.3.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "~5.8.3"
+  }
+}

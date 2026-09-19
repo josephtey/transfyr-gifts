@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.vercel/
+.env*
+!.env.example
+*.tsbuildinfo
+genentech/*.mp4
+.DS_Store
+test-results/
+playwright-report/
+
+.next/
+next-env.d.ts
+# Customer evidence stays out of the public source repository.
+genentech/
+src/data/session.json
+public/media/
+public/frames/
+review/
+.env.local
+.vercel
+
+# Contains the customer-specific editorial adjudication.
+scripts/prepare-data.py
