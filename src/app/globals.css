@@ -1479,36 +1479,36 @@ time,
   overflow: visible;
   pointer-events: none;
 }
-.evidence-link {
-  opacity: 0.55;
+:is(.evidence-link, .evidence-bundle) {
+  opacity: 0.3;
 }
-.evidence-link .connection-stroke {
+:is(.evidence-link, .evidence-bundle) .connection-stroke {
   fill: none;
   stroke: var(--issue-color);
   stroke-width: 1.2;
 }
-.evidence-link circle {
+:is(.evidence-link, .evidence-bundle) circle {
   fill: var(--issue-color);
 }
-.evidence-link.is-context {
-  opacity: 0.34;
+:is(.evidence-link, .evidence-bundle).is-context {
+  opacity: 0.17;
 }
-.evidence-link.is-context .connection-stroke {
+:is(.evidence-link, .evidence-bundle).is-context .connection-stroke {
   stroke-dasharray: 3 4;
 }
-.evidence-link.is-context circle {
+:is(.evidence-link, .evidence-bundle).is-context circle {
   fill: #141616;
   stroke: var(--issue-color);
   stroke-width: 1.2;
 }
-.evidence-link.is-emphasized {
+:is(.evidence-link, .evidence-bundle).is-emphasized {
   opacity: 1;
 }
-.evidence-link.is-emphasized .connection-stroke {
+:is(.evidence-link, .evidence-bundle).is-emphasized .connection-stroke {
   stroke-width: 2;
 }
-.evidence-link.is-emphasized circle {
-  filter: drop-shadow(0 0 3px #ee9b8855);
+:is(.evidence-link, .evidence-bundle).is-emphasized circle {
+  filter: none;
 }
 .evidence-finding .issue {
   border: 0;
@@ -1703,7 +1703,7 @@ time,
 }
 
 /* Traces lead the eye from recorded action to finding without moving anchors. */
-.evidence-link .line-reveal {
+:is(.evidence-link, .evidence-bundle) .line-reveal {
   fill: none;
   stroke: #fff;
   stroke-width: 8px;
@@ -1711,14 +1711,14 @@ time,
   stroke-dashoffset: 1;
   transition: stroke-dashoffset 720ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.evidence-link[data-in-view="true"] .line-reveal {
+:is(.evidence-link, .evidence-bundle)[data-in-view="true"] .line-reveal {
   stroke-dashoffset: 0;
 }
-.evidence-link .finding-endpoint {
+:is(.evidence-link, .evidence-bundle) .finding-endpoint {
   opacity: 0;
   transition: opacity 200ms ease 280ms;
 }
-.evidence-link[data-in-view="true"] .finding-endpoint {
+:is(.evidence-link, .evidence-bundle)[data-in-view="true"] .finding-endpoint {
   opacity: 1;
 }
 .finding-copy {
@@ -1736,10 +1736,10 @@ time,
   transition: opacity 440ms ease 140ms;
 }
 @media (prefers-reduced-motion: reduce) {
-  .evidence-link .line-reveal {
+  :is(.evidence-link, .evidence-bundle) .line-reveal {
     stroke-dashoffset: 0;
   }
-  .evidence-link .finding-endpoint {
+  :is(.evidence-link, .evidence-bundle) .finding-endpoint {
     opacity: 1;
   }
   .finding-copy {
@@ -1787,4 +1787,21 @@ time,
   margin-top: 3px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+/* Findings use shared rails, keeping the gutter calm at dense moments. */
+:is(.evidence-link, .evidence-bundle) .connection-stroke {
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+:is(.evidence-link, .evidence-bundle).is-emphasized {
+  opacity: 0.85;
+}
+:is(.evidence-link, .evidence-bundle).is-emphasized .connection-stroke {
+  stroke-width: 1.5;
+}
+.evidence-link .connection-crossing {
+  fill: none;
+  stroke: #141616;
+  stroke-width: 4px;
 }

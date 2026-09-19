@@ -18,6 +18,7 @@ type Edge = {
   y1: number;
   x2: number;
   y2: number;
+  lane: number;
 };
 type Geometry = { height: number; tops: Record<string, number>; edges: Edge[] };
 
@@ -125,7 +126,10 @@ export default function EvidenceSection({
       const tops: Record<string, number> = {};
       const edges: Edge[] = [];
       let bottom = 0;
-      for (const { issue, element, linked, target } of nodes) {
+      for (const [
+        index,
+        { issue, element, linked, target },
+      ] of nodes.entries()) {
         const trigger = element.querySelector<HTMLElement>(".issue-trigger")!;
         const triggerHeight = trigger.getBoundingClientRect().height;
         const top = Math.max(0, bottom, target - triggerHeight / 2);
@@ -135,15 +139,21 @@ export default function EvidenceSection({
         const y2 = top + triggerHeight / 2;
         for (const { action, el } of linked) {
           const rect = el!.getBoundingClientRect();
+          const x1 = rect.right - bounds.left + 3;
           edges.push({
             action,
             issue: issue.id,
             kind: issue.kind,
             context: issue.contextActionIds.includes(action),
-            x1: rect.right - bounds.left + 3,
+            x1,
             y1: rect.top - bounds.top + rect.height / 2,
             x2,
             y2,
+            lane:
+              x1 +
+              12 +
+              (nodes.length === 1 ? 0.5 : index / (nodes.length - 1)) *
+                (x2 - x1 - 24),
           });
         }
       }
@@ -177,6 +187,12 @@ export default function EvidenceSection({
     highlightedIssue
       ? edge.issue === highlightedIssue
       : edge.action === focusedAction;
+  const bundles = findings
+    .map(({ issue }) => {
+      const edges = geometry.edges.filter((edge) => edge.issue === issue.id);
+      return { issue, edges, strong: edges.some(emphasis) };
+    })
+    .filter((bundle) => bundle.edges.length > 0);
   return (
     <div
       ref={root}
@@ -208,12 +224,45 @@ export default function EvidenceSection({
           width="100%"
           height={geometry.height}
         >
+          {bundles.map(({ issue, edges, strong }) => {
+            const { lane, x2, y2 } = edges[0];
+            const top = Math.min(y2, ...edges.map((edge) => edge.y1));
+            const bottom = Math.max(y2, ...edges.map((edge) => edge.y1));
+            const path = `M ${lane} ${top} V ${bottom} M ${lane} ${y2} H ${x2}`;
+            const maskId = `bundle-${id}-${issue.id}`;
+            return (
+              <g
+                key={issue.id}
+                className={`evidence-bundle kind-${issue.kind} ${strong ? "is-emphasized" : ""} ${edges.every((edge) => edge.context) ? "is-context" : ""}`}
+                data-bundle={issue.id}
+                data-in-view={visibleFindings.has(issue.id)}
+              >
+                <defs>
+                  <mask
+                    id={maskId}
+                    maskUnits="userSpaceOnUse"
+                    x={lane - 5}
+                    y={top - 5}
+                    width={x2 - lane + 10}
+                    height={bottom - top + 10}
+                  >
+                    <path className="line-reveal" d={path} pathLength="1" />
+                  </mask>
+                </defs>
+                <path
+                  className="connection-stroke"
+                  d={path}
+                  mask={`url(#${maskId})`}
+                />
+              </g>
+            );
+          })}
           {[...geometry.edges]
             .sort((a, b) => Number(emphasis(a)) - Number(emphasis(b)))
             .map((edge) => {
-              const gap = edge.x2 - edge.x1;
               const strong = emphasis(edge);
-              const path = `M ${edge.x1} ${edge.y1} C ${edge.x1 + gap * 0.48} ${edge.y1}, ${edge.x2 - gap * 0.48} ${edge.y2}, ${edge.x2} ${edge.y2}`;
+              // Short branches share one vertical rail and outlet per finding.
+              const path = `M ${edge.x1} ${edge.y1} H ${edge.lane}`;
               const maskId = `trace-${id}-${edge.issue}-${edge.action}`;
               return (
                 <g
@@ -230,12 +279,17 @@ export default function EvidenceSection({
                       maskUnits="userSpaceOnUse"
                       x={edge.x1 - 5}
                       y={Math.min(edge.y1, edge.y2) - 5}
-                      width={gap + 10}
+                      width={edge.lane - edge.x1 + 10}
                       height={Math.abs(edge.y2 - edge.y1) + 10}
                     >
                       <path className="line-reveal" d={path} pathLength="1" />
                     </mask>
                   </defs>
+                  <path
+                    className="connection-crossing"
+                    d={path}
+                    mask={`url(#${maskId})`}
+                  />
                   <path
                     className="connection-stroke"
                     d={path}
@@ -245,13 +299,13 @@ export default function EvidenceSection({
                     className="action-endpoint"
                     cx={edge.x1}
                     cy={edge.y1}
-                    r={strong ? 3 : 2}
+                    r={strong ? 2.3 : 1.5}
                   />
                   <circle
                     className="finding-endpoint"
                     cx={edge.x2}
                     cy={edge.y2}
-                    r={strong ? 3 : 2}
+                    r={strong ? 2.3 : 1.5}
                   />
                 </g>
               );
