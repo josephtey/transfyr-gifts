@@ -24,7 +24,7 @@ export type SummaryNote = {
 };
 export type Issue = {
   id: string;
-  tier: "major" | "additional";
+  tier: "major" | "minor";
   kind: "error" | "risk" | "observation";
   category: string;
   title: string;
@@ -73,7 +73,7 @@ export type RecordStep = {
   counts: { errors: number; observations: number; risks: number } | null;
 };
 export type Session = {
-  schemaVersion: 3;
+  schemaVersion: 4;
   customer: string;
   operator: string;
   title: string;

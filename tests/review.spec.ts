@@ -63,7 +63,7 @@ test("one timeline connects every finding and keeps AI records separate from hum
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await login(page, "/genentech?t=390");
-  await page.getByRole("button", { name: "Show additional findings" }).click();
+  await page.getByRole("button", { name: "Minor findings" }).click();
   await expect(
     page.getByRole("heading", { name: "System of Record" }),
   ).toBeVisible();
@@ -90,15 +90,18 @@ test("one timeline connects every finding and keeps AI records separate from hum
     });
     if (await expand.count()) await expand.click();
   }
-  await expect(page.locator(".step-instruction")).toHaveText(
-    data.steps.map((step) => step.instruction),
-  );
+  await expect(page.locator(".step-instruction")).toHaveCount(0);
   await expect(page.locator('[data-step="blanks"] .step-empty')).toContainText(
     "No recorded actions identified",
   );
   await expect(page.locator('[data-step="blanks"] [data-id]')).toHaveCount(0);
-  await expect(page.locator(".review-count strong")).toHaveText(
-    String(data.counts.errorNotes),
+  await expect(page.locator(".major-filter strong")).toHaveText(
+    String(
+      countFindings(
+        data.issues.filter((i) => i.tier === "major"),
+        data.reviews,
+      ).errors,
+    ),
   );
   await expect(
     page.locator(".correction-tag,.human-evidence,.issue-source"),
@@ -397,6 +400,19 @@ test("steps start collapsed with counts and durations, and both step controls se
   await page
     .getByRole("button", { name: "Collapse Tube arrangement", exact: true })
     .click();
+  const headerPlacement = await page
+    .locator('[data-step="calibration-1"]')
+    .evaluate((el) => {
+      const heading = el.querySelector("h3")!.getBoundingClientRect();
+      const counts = el.querySelector(".step-counts")!.getBoundingClientRect();
+      return (
+        counts.left >= heading.right &&
+        Math.abs(
+          counts.top + counts.height / 2 - heading.top - heading.height / 2,
+        ) < 2
+      );
+    });
+  expect(headerPlacement).toBe(true);
   await page.screenshot({
     path: "/tmp/transfyr-collapsed-steps.png",
     fullPage: true,
@@ -450,56 +466,75 @@ test("steps start collapsed with counts and durations, and both step controls se
   ).toHaveCount(0);
 });
 
-test("major findings are the default, and showing more updates cards, counts, and action highlights together", async ({
+test("major and minor tiers can be selected independently, with only major on initially", async ({
   page,
 }) => {
   await login(page);
-  const toggle = page.getByRole("button", { name: "Show additional findings" });
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
-  const major = data.issues.filter((i) => i.tier === "major");
-  await expect(page.locator(".review-count strong")).toHaveText(
-    String(countFindings(major, data.reviews).errors),
-  );
+  const majorToggle = page.getByRole("button", { name: "Major findings" });
+  const minorToggle = page.getByRole("button", { name: "Minor findings" });
+  await expect(majorToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(minorToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByText("reviewed error notes")).toHaveCount(0);
+  await expect(page.locator(".tier-filters")).toBeVisible();
   for (const step of data.steps)
     await page
       .getByRole("button", { name: `Expand ${step.name}`, exact: true })
       .click();
-  for (const issue of data.issues.filter((i) => i.tier === "additional"))
-    await expect(page.locator(`[data-issue="${issue.id}"]`)).toHaveCount(0);
-  await expect(page.locator('[data-id="ai-26"]')).not.toHaveClass(/has-error/);
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".review-count strong")).toHaveText(
-    String(data.counts.errorNotes),
-  );
-  await expect(
-    page.locator('[data-issue="wrong-tube"] .issue-trigger'),
-  ).toHaveCount(1);
-  await expect(page.locator('[data-id="ai-26"]')).toHaveClass(/has-error/);
-  const extra = page.locator('[data-issue="wrong-tube"] .issue-trigger');
-  await extra.click();
-  await expect(page.locator(".insight-overlay")).toContainText(
-    "Stock dispensed",
-  );
-  await page.getByRole("button", { name: "Pause", exact: true }).click();
-  await toggle.click();
-  await expect(page.locator('[data-issue="wrong-tube"]')).toHaveCount(0);
-  await expect(
-    page.locator(".insight-overlay").filter({ hasText: "Stock dispensed" }),
-  ).toHaveCount(0);
-  await expect(
-    page.locator('[data-step="arrangement"] .issue-trigger'),
-  ).toHaveCount(0);
-  await expect(
-    page.locator('[data-step="arrangement"] .step-counts'),
-  ).toContainText("0 errors");
+  const assertTier = async (tier: "major" | "minor", visible: boolean) => {
+    for (const issue of data.issues.filter((i) => i.tier === tier)) {
+      const cards = page.locator(`[data-issue="${issue.id}"]`);
+      if (visible) expect(await cards.count()).toBeGreaterThan(0);
+      else await expect(cards).toHaveCount(0);
+    }
+  };
+  await assertTier("major", true);
+  await assertTier("minor", false);
+  await minorToggle.click();
+  await assertTier("major", true);
+  await assertTier("minor", true);
   for (const id of [
     "second-stop",
     "filter-wetting",
     "bubbles",
     "return-to-source",
   ])
-    await expect(page.locator(`[data-issue="${id}"]`)).toHaveCount(0);
+    expect(await page.locator(`[data-issue="${id}"]`).count()).toBeGreaterThan(
+      0,
+    );
+  await page
+    .locator('[data-issue="second-stop"] .issue-trigger')
+    .first()
+    .scrollIntoViewIfNeeded();
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-issue="second-stop"]')
+        .first()
+        .evaluate((el) => Number(getComputedStyle(el).opacity)),
+    )
+    .toBe(1);
+  await majorToggle.click();
+  await assertTier("major", false);
+  await assertTier("minor", true);
+  await minorToggle.click();
+  await expect(page.locator(".issue-trigger")).toHaveCount(0);
+  await expect(page.locator(".timeline-marker")).toHaveCount(0);
+  await expect(page.locator(".ai-action-text")).toHaveCount(
+    data.actions.length,
+  );
+  for (const step of data.steps.filter((s) => s.actionIds.length))
+    await expect(
+      page.locator(`[data-step="${step.id}"] .step-counts`),
+    ).toContainText("0 errors");
+  await majorToggle.click();
+  await assertTier("major", true);
+  await assertTier("minor", false);
+  await expect(
+    page.locator('[data-step="arrangement"] .issue-trigger'),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('[data-step="arrangement"] .step-counts'),
+  ).toContainText("0 errors");
 });
 
 test("category colors stay consistent through hover, selection, playback and connectors", async ({
@@ -553,4 +588,62 @@ test("category colors stay consistent through hover, selection, playback and con
     path: "/tmp/transfyr-category-colors.png",
     fullPage: true,
   });
+});
+
+test("scrubber includes every visible category with consistent colors and tier filtering", async ({
+  page,
+}) => {
+  await login(page);
+  const colors = {
+    error: "rgb(240, 128, 128)",
+    risk: "rgb(237, 204, 103)",
+    observation: "rgb(130, 182, 244)",
+  };
+  for (const kind of ["error", "risk", "observation"] as const) {
+    const markers = page.locator(`[data-marker-kind="${kind}"]`);
+    expect(await markers.count()).toBeGreaterThan(0);
+    for (const marker of await markers.all()) {
+      expect(
+        await marker.evaluate(
+          (el) => getComputedStyle(el, "::after").backgroundColor,
+        ),
+      ).toBe(colors[kind]);
+    }
+  }
+  await expect(page.locator('[data-marker-issues~="second-stop"]')).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "Minor findings" }).click();
+  const secondStop = page
+    .locator('.timeline-marker[data-marker-issues*="second-stop"]')
+    .first();
+  await expect(secondStop).toBeVisible();
+  const firstIssue = (await secondStop.getAttribute(
+    "data-marker-issues",
+  ))!.split(",")[0];
+  await secondStop.click();
+  await expect
+    .poll(() =>
+      page.locator("video").evaluate((v: HTMLVideoElement) => v.paused),
+    )
+    .toBe(false);
+  await expect(page.locator(".insight-overlay")).toContainText(
+    data.issues.find((i) => i.id === firstIssue)!.title,
+  );
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(page.locator(".form-error")).toHaveCount(0);
+  await page.screenshot({
+    path: "/tmp/transfyr-final-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "/tmp/transfyr-final-mobile.png",
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
 });

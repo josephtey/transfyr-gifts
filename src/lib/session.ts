@@ -9,7 +9,7 @@ const files: Record<string, string> = { genentech: "session.json" };
 export async function loadSession(customer: string): Promise<Session> {
   if (!files[customer]) throw new Error("Unknown customer");
   if (process.env.BLOB_MEDIA === "1") {
-    const result = await get(`data/${customer}/session-v3.json`, {
+    const result = await get(`data/${customer}/session-v4.json`, {
       access: "private",
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });

@@ -113,17 +113,13 @@ test("all human error cells and run summaries are traceable; each review has one
     }
     if (r.error)
       assert.ok(
-        [...session.issues, ...session.withheldFindings].some((i) =>
-          i.reviewIds.includes(r.id),
-        ),
+        session.issues.some((i) => i.reviewIds.includes(r.id)),
         r.id,
       );
   }
   for (const n of session.summaryNotes)
     assert.ok(
-      [...session.issues, ...session.withheldFindings].some((i) =>
-        i.summaryIds.includes(n.id),
-      ),
+      session.issues.some((i) => i.summaryIds.includes(n.id)),
       n.id,
     );
   for (const i of session.issues) {
@@ -232,9 +228,10 @@ test("only accepted findings are displayed and their stage counts agree with pla
     "bubbles",
     "return-to-source",
   ]) {
-    assert.ok(!session.issues.some((i) => i.id === id));
+    assert.equal(session.issues.find((i) => i.id === id).tier, "minor");
+    assert.notEqual(session.issues.find((i) => i.id === id).kind, "error");
     assert.ok(
-      session.withheldFindings.some((i) => i.id === id && i.reason.length),
+      session.scientificCautions.some((i) => i.id === id && i.reason.length),
     );
   }
   assert.equal(session.issues.find((i) => i.id === "tip-reuse").kind, "risk");
@@ -260,4 +257,51 @@ test("prepared media clips keep their boundaries and exist after ingestion", asy
     );
   }
   assert.ok(session.actions.find((a) => a.id === "ai-44").clipFile);
+});
+
+test("timeline clusters retain every selected category's notes and omissions remain ranges", async () => {
+  const { buildTimelineMarkers } = await import("../src/lib/findings.ts");
+  for (const selected of [
+    session.issues.filter((i) => i.tier === "major"),
+    session.issues.filter((i) => i.tier === "minor"),
+    session.issues,
+  ]) {
+    const markers = buildTimelineMarkers(
+      selected,
+      session.reviews,
+      session.steps,
+    );
+    for (const issue of selected)
+      for (const reviewId of issue.reviewIds) {
+        assert.ok(
+          markers.some(
+            (marker) =>
+              marker.kind === issue.kind &&
+              marker.issueIds.includes(issue.id) &&
+              marker.reviewIds.includes(reviewId),
+          ),
+        );
+      }
+    for (const marker of markers) {
+      assert.ok(
+        marker.issueIds.every((id) =>
+          selected.some((i) => i.id === id && i.kind === marker.kind),
+        ),
+      );
+      if (marker.end !== undefined) {
+        assert.ok(marker.end > marker.start);
+        assert.equal(marker.reviewIds.length, 0);
+        assert.ok(
+          marker.issueIds.every(
+            (id) => selected.find((i) => i.id === id).scope === "run-level",
+          ),
+        );
+      } else {
+        assert.equal(
+          marker.start,
+          Math.min(...marker.reviewIds.map((id) => reviews.get(id).start)),
+        );
+      }
+    }
+  }
 });

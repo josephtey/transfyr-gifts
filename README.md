@@ -1,6 +1,6 @@
 # Transfyr customer reviews
 
-A private video workspace built with Next.js and React: paired original/perception recordings, one scrolling action-and-finding timeline with visible evidence connectors. The System of Record preserves exact AI actions; human adjudications appear in the findings on the right; the active insight sits below the scrubber. Click an action or finding to play its clip. Animated connectors and a live playhead follow the recording in the System of Record. Dark mode, no dashboard. Protocol stages start collapsed with durations and counts. Stage titles and scrubber chapters seek the recording; playback opens and follows the current stage. The default shows major findings, with one “Show more” toggle for additional supported findings. Counts and highlights use the same visible tier and step ownership. Unsupported claims remain in the private audit, outside the customer interface.
+A private video workspace built with Next.js and React: paired original/perception recordings, one scrolling action-and-finding timeline with visible evidence connectors. The System of Record preserves exact AI actions; human adjudications appear in the findings on the right; the active insight sits below the scrubber. Click an action or finding to play its clip. Animated connectors and a live playhead follow the recording in the System of Record. Dark mode, no dashboard. Protocol stages start collapsed with durations and counts. Stage titles and scrubber chapters seek the recording; playback opens and follows the current stage. Major and Minor are independently selectable, starting with Major only. Minor restores the full human review with scientific uncertainty retained in the copy. Step counts, highlights and colored scrubber markers follow the selected tiers. The two header filters show the available error counts. Unresolved claims are not presented as confirmed errors.
 
 ## Run locally
 
@@ -25,7 +25,7 @@ The route is `/<customer>`. To use a customer subdomain, add your owned domain t
 
 Deployment scope: **joe-5572**. Do not deploy to the Transfyr organization. Project: `transfyr-gifts`.
 
-- Private Vercel Blob contains `media/<customer>/…` and `data/<customer>/session-v3.json`.
+- Private Vercel Blob contains `media/<customer>/…` and `data/<customer>/session-v4.json`.
 - `BLOB_MEDIA=1` makes the server load review data privately and route media requests to authenticated handlers.
 - A valid customer session is required to issue an exact-file, read-only Blob URL. URLs expire after one hour; anyone holding an issued URL can use it until expiry. The unsigned storage URLs deny access.
 - The Blob CDN handles byte-range playback. Download requests stream through the authenticated route with an attachment filename.

@@ -17,9 +17,10 @@ import {
 } from "lucide-react";
 import type { Session, Action, Issue, RecordStep } from "../lib/types";
 import EvidenceSection from "./EvidenceSection";
-import { countFindings } from "../lib/findings";
+import { countFindings, buildTimelineMarkers } from "../lib/findings";
 const clock = (t: number) =>
   `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+const tierLabel = { major: "Major", minor: "Minor" };
 const kindLabel = { error: "Error", risk: "Risk", observation: "Observation" };
 export default function Review({
   session,
@@ -48,14 +49,25 @@ export default function Review({
     () => new Set(session.steps.map((step) => step.id)),
   );
   const [hasNavigated, setHasNavigated] = useState(false);
-  const [showMore, setShowMore] = useState(false);
-  const visibleIssues = useMemo(
-    () => session.issues.filter((issue) => showMore || issue.tier === "major"),
-    [session.issues, showMore],
+  const [selectedTiers, setSelectedTiers] = useState<Set<Issue["tier"]>>(
+    () => new Set(["major"]),
   );
-  const visibleCounts = useMemo(
-    () => countFindings(visibleIssues, session.reviews),
-    [visibleIssues, session.reviews],
+  const visibleIssues = useMemo(
+    () => session.issues.filter((issue) => selectedTiers.has(issue.tier)),
+    [session.issues, selectedTiers],
+  );
+  const tierCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        (["major", "minor"] as const).map((tier) => [
+          tier,
+          countFindings(
+            session.issues.filter((issue) => issue.tier === tier),
+            session.reviews,
+          ).errors,
+        ]),
+      ),
+    [session.issues, session.reviews],
   );
   const duration = session.duration;
   const actionById = useMemo(
@@ -107,24 +119,9 @@ export default function Review({
     overlayIssue &&
     overlayIssue.id !== dismissed &&
     (!chosenIssue || linkedActions.has(selected || focusAction?.id || ""));
-  const errorReviewIds = useMemo(
-    () =>
-      new Set(
-        visibleIssues
-          .filter((i) => i.kind === "error")
-          .flatMap((i) => i.reviewIds),
-      ),
-    [visibleIssues],
-  );
   const markers = useMemo(
-    () =>
-      session.reviews
-        .filter((r) => errorReviewIds.has(r.id) && r.error)
-        .filter(
-          (r, index, all) =>
-            all.findIndex((x) => x.start === r.start) === index,
-        ),
-    [session, errorReviewIds],
+    () => buildTimelineMarkers(visibleIssues, session.reviews, session.steps),
+    [visibleIssues, session.reviews, session.steps],
   );
   function seek(t: number, play = false, clip = false) {
     const target = Math.max(0, Math.min(duration, t));
@@ -136,12 +133,10 @@ export default function Review({
     if (video.current) {
       video.current.currentTime = target;
       if (play)
-        void video.current
-          .play()
-          .catch((reason: DOMException) => {
-            if (reason.name !== "AbortError")
-              setError("Press play to start the recording.");
-          });
+        void video.current.play().catch((reason: DOMException) => {
+          if (reason.name !== "AbortError")
+            setError("Press play to start the recording.");
+        });
     }
   }
   function togglePlay() {
@@ -150,12 +145,10 @@ export default function Review({
     if (v.paused) {
       setSelected(null);
       clipEnd.current = null;
-      void v
-        .play()
-        .catch((reason: DOMException) => {
-          if (reason.name !== "AbortError")
-            setError("The recording could not play. Try reloading.");
-        });
+      void v.play().catch((reason: DOMException) => {
+        if (reason.name !== "AbortError")
+          setError("The recording could not play. Try reloading.");
+      });
     } else v.pause();
   }
   function changeMode() {
@@ -215,7 +208,7 @@ export default function Review({
     const linkedIssue = session.issues.find((i) => i.id === q.get("issue"));
     if (linkedIssue) {
       setSelectedIssueId(linkedIssue.id);
-      if (linkedIssue.tier === "additional") setShowMore(true);
+      setSelectedTiers((previous) => new Set([...previous, linkedIssue.tier]));
     }
   }, [duration, actionById, session.issues]);
   const followedActionId = playing
@@ -399,7 +392,7 @@ export default function Review({
           <span className="finding-copy">
             <span className="issue-kind">
               <i />
-              {kindLabel[issue.kind]}
+              {tierLabel[issue.tier]} · {kindLabel[issue.kind]}
             </span>
             <strong>{issue.title}</strong>
             <span className="issue-description">{issue.description}</span>
@@ -421,11 +414,34 @@ export default function Review({
           <span> / Calibration</span>
         </h1>
         <div
-          className="review-count"
-          title="Distinct reviewed error notes in this view. Risks and observations are counted separately."
+          className="tier-filters"
+          role="group"
+          aria-label="Finding importance"
         >
-          <strong>{visibleCounts.errors}</strong>
-          <span>reviewed error notes</span>
+          {(["major", "minor"] as const).map((tier) => (
+            <button
+              className={`tier-filter ${tier}-filter`}
+              key={tier}
+              aria-label={`${tierLabel[tier]} findings`}
+              aria-pressed={selectedTiers.has(tier)}
+              onClick={() => {
+                setSelectedTiers((previous) => {
+                  const next = new Set(previous);
+                  if (next.has(tier)) next.delete(tier);
+                  else next.add(tier);
+                  return next;
+                });
+                setSelectedIssueId(null);
+                setHoveredIssueId(null);
+                setDismissed(null);
+              }}
+            >
+              <strong>{tierCounts[tier]}</strong>
+              <span>
+                {tier} {tierCounts[tier] === 1 ? "error" : "errors"}
+              </span>
+            </button>
+          ))}
         </div>
         <div className="header-tools">
           <details className="more-menu">
@@ -564,10 +580,26 @@ export default function Review({
                       }
                       onClick={() => jumpToStep(step)}
                     >
-                      <span>{number}</span>
-                      {width > 8 && (
+                      {width > 8 ? (
                         <span className="scrubber-step-name">{step.name}</span>
+                      ) : (
+                        <span>{number}</span>
                       )}
+                      {visibleIssues
+                        .filter(
+                          (issue) =>
+                            issue.scope === "run-level" &&
+                            issue.stepIds.includes(step.id),
+                        )
+                        .map((issue) => (
+                          <i
+                            className={`chapter-finding kind-${issue.kind}`}
+                            key={issue.id}
+                            data-chapter-issue={issue.id}
+                            title={`${kindLabel[issue.kind]} · ${issue.title}`}
+                            aria-label={`${kindLabel[issue.kind]} affecting this step: ${issue.title}`}
+                          />
+                        ))}
                     </button>
                   );
                 })}
@@ -592,26 +624,39 @@ export default function Review({
                   }
                 />
                 <div className="timeline-marks">
-                  {markers.map((r) => (
-                    <button
-                      key={r.id}
-                      className={
-                        highlightedIssue?.reviewIds.includes(r.id)
-                          ? "linked-marker"
-                          : ""
-                      }
-                      style={{ left: `${(r.start / duration) * 100}%` }}
-                      aria-label={`${clock(r.start)}: ${r.error}`}
-                      title={r.error}
-                      onClick={() =>
-                        selectAction(
-                          actionById.get(r.primaryActionId)!,
-                          false,
-                          r.start,
+                  {markers
+                    .filter((marker) => marker.end === undefined)
+                    .map((marker) => {
+                      const titles = marker.issueIds
+                        .map(
+                          (id) =>
+                            visibleIssues.find((issue) => issue.id === id)!
+                              .title,
                         )
-                      }
-                    />
-                  ))}
+                        .join(" · ");
+                      return (
+                        <button
+                          key={marker.id}
+                          data-marker-kind={marker.kind}
+                          data-marker-issues={marker.issueIds.join(",")}
+                          className={`timeline-marker kind-${marker.kind} ${marker.end !== undefined ? "is-span" : ""} ${highlightedIssue && marker.issueIds.includes(highlightedIssue.id) ? "linked-marker" : ""}`}
+                          style={{
+                            left: `${(marker.start / duration) * 100}%`,
+                            ...(marker.end !== undefined
+                              ? {
+                                  width: `${((marker.end - marker.start) / duration) * 100}%`,
+                                }
+                              : {}),
+                          }}
+                          aria-label={`${kindLabel[marker.kind]} · ${titles} · ${clock(marker.start)}${marker.end !== undefined ? `–${clock(marker.end)}` : ""}`}
+                          title={`${kindLabel[marker.kind]} · ${titles}`}
+                          onClick={() => {
+                            setSelectedIssueId(marker.issueIds[0]);
+                            watchAction(actionById.get(marker.actionId)!, true);
+                          }}
+                        />
+                      );
+                    })}
                 </div>
               </div>
               <div className="control-row">
@@ -664,6 +709,7 @@ export default function Review({
                 <div>
                   <span className="insight-indicator" />
                   <span>
+                    {tierLabel[overlayIssue.tier]} ·{" "}
                     {kindLabel[overlayIssue.kind]} · {overlayIssue.category}
                   </span>
                   <button
@@ -691,22 +737,6 @@ export default function Review({
             <div className="log-heading">
               <h2>System of Record</h2>
             </div>
-            <button
-              className="findings-toggle"
-              aria-label="Show additional findings"
-              aria-pressed={showMore}
-              onClick={() => {
-                setShowMore(!showMore);
-                setSelectedIssueId(null);
-                setHoveredIssueId(null);
-                setDismissed(null);
-              }}
-            >
-              <span className="toggle-track" aria-hidden="true">
-                <span />
-              </span>
-              Show more
-            </button>
           </div>
           <div
             ref={list}
@@ -737,6 +767,42 @@ export default function Review({
                         {step.name}
                       </button>
                     </h3>
+                    <div className="step-counts">
+                      {step.counts ? (
+                        <>
+                          <span
+                            className={
+                              step.counts.errors ? "kind-error" : "zero"
+                            }
+                          >
+                            {step.counts.errors}{" "}
+                            {step.counts.errors === 1 ? "error" : "errors"}
+                          </span>
+                          <span
+                            className={
+                              step.counts.observations
+                                ? "kind-observation"
+                                : "zero"
+                            }
+                          >
+                            {step.counts.observations}{" "}
+                            {step.counts.observations === 1
+                              ? "observation"
+                              : "observations"}
+                          </span>
+                          <span
+                            className={step.counts.risks ? "kind-risk" : "zero"}
+                          >
+                            {step.counts.risks}{" "}
+                            {step.counts.risks === 1 ? "risk" : "risks"}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="zero">
+                          No recorded actions identified
+                        </span>
+                      )}
+                    </div>
                     <time className="step-duration" title="Recorded duration">
                       {step.start !== null && step.end !== null
                         ? clock(step.end - step.start)
@@ -752,43 +818,6 @@ export default function Review({
                       <ChevronDown size={14} />
                     </button>
                   </div>
-                  <div className="step-counts">
-                    {step.counts ? (
-                      <>
-                        <span
-                          className={step.counts.errors ? "kind-error" : "zero"}
-                        >
-                          {step.counts.errors}{" "}
-                          {step.counts.errors === 1 ? "error" : "errors"}
-                        </span>
-                        <span
-                          className={
-                            step.counts.observations
-                              ? "kind-observation"
-                              : "zero"
-                          }
-                        >
-                          {step.counts.observations}{" "}
-                          {step.counts.observations === 1
-                            ? "observation"
-                            : "observations"}
-                        </span>
-                        <span
-                          className={step.counts.risks ? "kind-risk" : "zero"}
-                        >
-                          {step.counts.risks}{" "}
-                          {step.counts.risks === 1 ? "risk" : "risks"}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="zero">
-                        No recorded actions identified
-                      </span>
-                    )}
-                  </div>
-                  {!collapsedSteps.has(step.id) && (
-                    <p className="step-instruction">{step.instruction}</p>
-                  )}
                 </header>
                 <div
                   className="record-step-body"
