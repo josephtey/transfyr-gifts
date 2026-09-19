@@ -701,6 +701,11 @@ test("an explicit beginning timestamp overrides the default first-error position
   await login(page, "/genentech?t=0");
   await expect
     .poll(() =>
+      page.locator("video").evaluate((video: HTMLVideoElement) => video.readyState),
+    )
+    .toBeGreaterThanOrEqual(1);
+  await expect
+    .poll(() =>
       page.locator("video").evaluate((v: HTMLVideoElement) => v.currentTime),
     )
     .toBe(0);
