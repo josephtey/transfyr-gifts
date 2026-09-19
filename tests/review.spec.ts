@@ -37,7 +37,7 @@ test("private evidence stays behind the password gate", async ({
   await expect(page.getByLabel("Access password")).toBeVisible();
   await page.getByLabel("Access password").fill("wrong-password");
   await page.getByRole("button", { name: "Open your review" }).click();
-  await expect(page.getByRole("alert")).toContainText("doesn’t match");
+  await expect(page.locator(".form-error[role=alert]")).toContainText("doesn’t match");
   await page
     .getByLabel("Access password")
     .fill(process.env.CUSTOMER_PASSWORD_GENENTECH!);
