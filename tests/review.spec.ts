@@ -530,6 +530,13 @@ test("major and minor tiers can be selected independently, with only major on in
   };
   await assertTier("major", true);
   await assertTier("minor", false);
+  for (const note of data.summaryNotes) {
+    const finding = data.issues.find(
+      (issue) => issue.tier === "major" && issue.summaryIds.includes(note.id),
+    );
+    expect(finding, "Every human summary theme is available by default").toBeDefined();
+    expect(await page.locator(`[data-issue="${finding!.id}"]`).count()).toBeGreaterThan(0);
+  }
   await minorToggle.click();
   await assertTier("major", true);
   await assertTier("minor", true);

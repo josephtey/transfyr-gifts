@@ -228,10 +228,21 @@ test("only accepted findings are displayed and their stage counts agree with pla
     "bubbles",
     "return-to-source",
   ]) {
-    assert.equal(session.issues.find((i) => i.id === id).tier, "minor");
+    assert.equal(
+      session.issues.find((i) => i.id === id).tier,
+      ["filter-wetting", "return-to-source"].includes(id) ? "major" : "minor",
+    );
     assert.notEqual(session.issues.find((i) => i.id === id).kind, "error");
     assert.ok(
       session.scientificCautions.some((i) => i.id === id && i.reason.length),
+    );
+  }
+  for (const note of session.summaryNotes) {
+    assert.ok(
+      session.issues.some(
+        (issue) => issue.tier === "major" && issue.summaryIds.includes(note.id),
+      ),
+      `${note.id}: every human summary theme must appear in Major`,
     );
   }
   assert.equal(session.issues.find((i) => i.id === "tip-reuse").kind, "risk");
