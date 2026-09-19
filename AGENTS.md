@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## User preferences for this project
 
-- Dark mode. Keep the interface to a video, a single chronological action log, and contextual insight overlays. Highlight interesting actions in the log; do not add tabs, dashboards, summary cards or decorative copy.
+- Dark mode: video beside a single scrolling action-and-finding timeline. Findings travel with their actions; draw persistent connector lines for every relationship. Use the heading “System of Record” and no right-column heading. Clicking an action or finding plays the corresponding clip directly. Draw connector lines into view, then reveal findings; respect reduced motion. Show a live playhead and progress on the actual current action, and scroll the shared timeline with playback. System of Record must display the exact AI actions. Human adjudications, including second-stop use, filter wetting and failed transfers, belong only in the findings on the right. Omit correction badges, source/audit explanations, linked-action counts, timestamp lists, or extra buttons. Keep the underlying AI record and human mapping intact privately. Put the active insight below the scrubber. Retain the deduplicated error-note count at the top.
 - Vercel deployments must target the personal `joe-5572` scope. Never use the Transfyr team.
 - This GitHub repo is public. Customer videos, review data, environment files and evidence-derived ingestion code stay out of Git.
 - Human notes are the primary adjudication; keep AI action descriptions distinguishable.

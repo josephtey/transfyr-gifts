@@ -1,6 +1,6 @@
 # Transfyr customer reviews
 
-A private video workspace built with Next.js and React: paired original/perception recordings, one chronological action log, and human-reviewed insight overlays. Dark mode, no dashboard.
+A private video workspace built with Next.js and React: paired original/perception recordings, one scrolling action-and-finding timeline with visible evidence connectors. The System of Record preserves exact AI actions; human adjudications appear in the findings on the right; the active insight sits below the scrubber. Click an action or finding to play its clip. Animated connectors and a live playhead follow the recording in the System of Record. Dark mode, no dashboard.
 
 ## Run locally
 
@@ -13,7 +13,7 @@ npm run dev
 
 Open `http://localhost:3000/genentech`. Local evidence is intentionally excluded from this public repository. A fresh clone needs the customer's dataset at `src/data/session.json`, videos at `public/media/genentech/`, and stills at `public/frames/genentech/`; alternatively configure the private Blob store and `BLOB_MEDIA=1`.
 
-`npm run build` checks types and builds production output. `npm test` runs the browser checks against a running local server. `TEST_BASE_URL` runs them against a deployment. Tests read the password from `.env.local`.
+`npm run test:data` verifies source preservation, review coverage, and count deduplication against the private evidence files. `npm run build` checks types and builds production output. `npm test` runs the browser checks against a running local server. `TEST_BASE_URL` runs them against a deployment. Tests read the password from `.env.local`.
 
 ## Customer configuration
 
@@ -25,7 +25,7 @@ The route is `/<customer>`. To use a customer subdomain, add your owned domain t
 
 Deployment scope: **joe-5572**. Do not deploy to the Transfyr organization. Project: `transfyr-gifts`.
 
-- Private Vercel Blob contains `media/<customer>/…` and `data/<customer>/session.json`.
+- Private Vercel Blob contains `media/<customer>/…` and `data/<customer>/session-v2.json`.
 - `BLOB_MEDIA=1` makes the server load review data privately and route media requests to authenticated handlers.
 - A valid customer session is required to issue an exact-file, read-only Blob URL. URLs expire after one hour; anyone holding an issued URL can use it until expiry. The unsigned storage URLs deny access.
 - The Blob CDN handles byte-range playback. Download requests stream through the authenticated route with an attachment filename.
@@ -40,4 +40,4 @@ Upload evidence from the source machine with `node --env-file=.env.local scripts
 
 ## Evidence handling
 
-The human review is primary. AI activity is preserved as model-generated description, including uncertainty and disagreements. Grouped moment boundaries are editorial. Browser recordings are compressed derivatives of the original sources, not the full-size source masters. Neither visible pipette settings nor model descriptions establish actual volumes or final concentrations.
+The human review is primary. Exact AI text, original intervals and human-row mappings remain in the private audit; the System of Record displays the original AI text and the findings contain human adjudication, without editing history or correction badges. Every finding is linked to its supporting actions, with separate context links for sequence-level evidence. Categories may recur alongside different action groups; the headline counts distinct error notes rather than repeated visual instances. Clip boundaries are editorial. Browser recordings are compressed derivatives of the original sources, not the full-size source masters. Neither visible pipette settings nor model descriptions establish actual volumes or final concentrations.

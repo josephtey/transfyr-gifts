@@ -39,7 +39,10 @@ for (const name of await readdir(`public/frames/${customer}`)) {
     },
   );
 }
-await put(`data/${customer}/session.json`, await readFile(dataset), {
+const reviewBytes = await readFile(dataset);
+const version = JSON.parse(reviewBytes.toString()).schemaVersion;
+const reviewName = version ? `session-v${version}.json` : "session.json";
+await put(`data/${customer}/${reviewName}`, reviewBytes, {
   access: "private",
   token,
   addRandomSuffix: false,

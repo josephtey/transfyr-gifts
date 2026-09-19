@@ -1,37 +1,72 @@
-export type Observation = {
+export type ReviewRelationship =
+  "confirms" | "detail" | "correction" | "missing" | "context" | "ambiguous";
+export type HumanReview = {
+  id: string;
   row: number;
   start: number;
   timestamp: string;
-  action: string;
-  note: string;
-  timing: string;
+  step: string;
+  error: string;
+  timing: "explicit" | "inherited";
+  inheritedFrom: number | null;
+  primaryActionId: string;
+  contextActionIds: string[];
+  relationship: ReviewRelationship;
+  explanation: string;
 };
-export type Moment = {
+export type SummaryNote = {
   id: string;
-  start: number;
-  end: number;
-  title: string;
+  row: number;
+  column: string;
+  text: string;
+  kind: string;
+  timing: "run-level";
+};
+export type Issue = {
+  id: string;
+  kind: "error" | "risk" | "observation";
   category: string;
-  observation: string;
-  meaning: string;
-  sourceRows: Observation[];
-  frame: string;
+  title: string;
+  description: string;
+  reviewIds: string[];
+  summaryIds: string[];
+  actionIds: string[];
+  contextActionIds: string[];
+  scope: "events" | "run-level";
 };
 export type Action = {
+  annotation?: string;
   id: string;
   start: number;
   end: number;
   text: string;
   task: string;
-  source: string;
+  source: "AI-generated";
+  ontologyId: string | null;
+  sourcePointer: string;
+  reviewIds: string[];
+  issueIds: string[];
+  clipStart?: number;
+  clipEnd?: number;
+  clipFile?: string;
 };
 export type Session = {
-  overview: { title: string; body: string; caveat: string };
+  schemaVersion: 2;
   customer: string;
   operator: string;
   title: string;
   duration: number;
   actions: Action[];
-  moments: Moment[];
-  chapters: { start: number; label: string }[];
+  reviews: HumanReview[];
+  issues: Issue[];
+  summaryNotes: SummaryNote[];
+  sources: { ai: string; human: string };
+  counts: {
+    errorNotes: number;
+    timedErrorNotes: number;
+    runLevelErrorNotes: number;
+    sourceErrorCells: number;
+    humanRows: number;
+    errorCategories: number;
+  };
 };
