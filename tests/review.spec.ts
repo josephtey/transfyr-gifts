@@ -27,13 +27,12 @@ test("private evidence stays behind the password gate", async ({
     });
     expect(r.status()).toBe(401);
   }
-  expect(
-    (
-      await request.get(
-        base + "/_next/image?url=%2Fframes%2Fgenentech%2Fstock.jpg&w=640&q=75",
-      )
-    ).status(),
-  ).toBe(404);
+  const imageAttempt = await request.get(
+    base + "/_next/image?url=%2Fframes%2Fgenentech%2Fstock.jpg&w=640&q=75",
+  );
+  // Vercel's image layer returns 401; the local router returns 404.
+  // Both must deny access instead of returning customer imagery.
+  expect([401, 403, 404]).toContain(imageAttempt.status());
   await page.goto(base + "/genentech?t=394");
   await expect(page.getByLabel("Access password")).toBeVisible();
   await page.getByLabel("Access password").fill("wrong-password");
