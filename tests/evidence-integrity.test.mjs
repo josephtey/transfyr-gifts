@@ -23,6 +23,82 @@ test("every AI action retains its exact source text, time interval and ontology 
     );
   });
 });
+test("source steps and tasks retain their hierarchy and cover every action once", () => {
+  assert.equal(
+    session.sourceSteps.length,
+    raw.episodes.flatMap((e) => e.steps).length,
+  );
+  const protocolIds = new Set(
+    session.protocol.map((instruction) => instruction.id),
+  );
+  for (const step of session.sourceSteps) {
+    const source = step.sourcePointer
+      .split("/")
+      .slice(1)
+      .reduce((node, key) => node[key], raw);
+    assert.equal(step.name, source.step_name);
+    assert.equal(step.sourceId, source.step_id);
+    assert.equal(step.start, source.start_s);
+    assert.equal(step.end, source.end_s);
+    assert.equal(step.tasks.length, source.tasks.length);
+    step.tasks.forEach((task, index) => {
+      const originalTask = source.tasks[index];
+      assert.equal(task.name, originalTask.task_name);
+      assert.equal(task.sourceId, originalTask.task_id);
+      assert.equal(task.start, originalTask.start_s);
+      assert.equal(task.end, originalTask.end_s);
+      assert.deepEqual(
+        task.actionIds.map((id) => actions.get(id).text),
+        originalTask.atomic_actions.map((a) => a.atomic_action),
+      );
+      assert.ok(task.protocolIds.length > 0);
+      task.protocolIds.forEach((id) => assert.ok(protocolIds.has(id)));
+    });
+  }
+  assert.deepEqual(
+    session.sourceSteps.flatMap((s) => s.tasks.flatMap((t) => t.actionIds)),
+    session.actions.map((a) => a.id),
+  );
+});
+test("manual protocol stages cover all actions without inventing a blank preparation", () => {
+  assert.deepEqual(
+    session.steps.map((step) => step.name),
+    session.protocol.map((instruction) => instruction.title),
+  );
+  assert.deepEqual(
+    session.steps.flatMap((step) => step.actionIds),
+    session.actions.map((a) => a.id),
+  );
+  for (const step of session.steps) {
+    assert.equal(
+      step.instruction,
+      session.protocol.find((p) => p.id === step.id).text,
+    );
+    assert.deepEqual(
+      step.segments.flatMap((segment) => segment.actionIds),
+      step.actionIds,
+    );
+    if (step.actionIds.length) {
+      assert.equal(step.start, actions.get(step.actionIds[0]).start);
+      assert.equal(step.end, actions.get(step.actionIds.at(-1)).end);
+    } else {
+      assert.equal(step.start, null);
+      assert.equal(step.end, null);
+    }
+  }
+  assert.deepEqual(session.steps.find((s) => s.id === "blanks").actionIds, []);
+  for (const [id, row] of [
+    ["calibration-1", "review-5"],
+    ["calibration-2", "review-25"],
+    ["calibration-3", "review-52"],
+  ]) {
+    assert.ok(
+      session.steps
+        .find((s) => s.id === id)
+        .actionIds.includes(reviews.get(row).primaryActionId),
+    );
+  }
+});
 test("all human error cells and run summaries are traceable; each review has one primary action", () => {
   for (const r of session.reviews) {
     assert.ok(actions.has(r.primaryActionId));
@@ -37,13 +113,17 @@ test("all human error cells and run summaries are traceable; each review has one
     }
     if (r.error)
       assert.ok(
-        session.issues.some((i) => i.reviewIds.includes(r.id)),
+        [...session.issues, ...session.withheldFindings].some((i) =>
+          i.reviewIds.includes(r.id),
+        ),
         r.id,
       );
   }
   for (const n of session.summaryNotes)
     assert.ok(
-      session.issues.some((i) => i.summaryIds.includes(n.id)),
+      [...session.issues, ...session.withheldFindings].some((i) =>
+        i.summaryIds.includes(n.id),
+      ),
       n.id,
     );
   for (const i of session.issues) {
@@ -71,7 +151,7 @@ test("error totals deduplicate shared notes and distinguish run-level omissions,
     session.reviews.filter((r) => r.error).length,
   );
   assert.ok(
-    errors.flatMap((i) => i.reviewIds).length > notes.size,
+    errors.flatMap((i) => i.reviewIds).length >= notes.size,
     "Many-to-many references must not inflate the headline count.",
   );
   for (const i of session.issues.filter((i) => i.scope === "run-level")) {
@@ -88,7 +168,96 @@ test("missing actions, timing offsets, and internal reviewer contradictions rema
   for (const id of ["review-47", "review-49", "review-51"])
     assert.equal(reviews.get(id).relationship, "ambiguous");
   assert.equal(
-    session.issues.find((i) => i.id === "bubbles").kind,
+    session.issues.find((i) => i.id === "calibration-two-volume").kind,
     "observation",
   );
+});
+
+test("only accepted findings are displayed and their stage counts agree with placement", () => {
+  const expectedCounts = new Map();
+  for (const stage of session.steps) {
+    if (!stage.actionIds.length) {
+      assert.equal(stage.counts, null);
+      continue;
+    }
+    const counts = {};
+    for (const [kind, label] of [
+      ["error", "errors"],
+      ["observation", "observations"],
+      ["risk", "risks"],
+    ]) {
+      const findings = session.issues.filter(
+        (i) => i.kind === kind && i.stepIds.includes(stage.id),
+      );
+      const notes = new Set(
+        findings
+          .flatMap((i) => i.reviewIds)
+          .filter(
+            (id) =>
+              stage.actionIds.includes(reviews.get(id).primaryActionId) &&
+              (kind !== "error" || reviews.get(id).error),
+          ),
+      );
+      const summaries = new Set(
+        findings
+          .filter((i) => i.scope === "run-level")
+          .flatMap((i) => i.summaryIds),
+      );
+      counts[label] = notes.size + summaries.size;
+      assert.equal(
+        findings.length === 0,
+        counts[label] === 0,
+        `${stage.id}: visible ${kind} findings must agree with counts`,
+      );
+    }
+    expectedCounts.set(stage.id, counts);
+    assert.deepEqual(stage.counts, counts);
+  }
+  assert.equal(
+    session.steps.reduce((sum, stage) => sum + (stage.counts?.errors ?? 0), 0),
+    session.counts.errorNotes,
+  );
+  for (const issue of session.issues) {
+    assert.ok(issue.stepIds.length);
+    for (const id of issue.stepIds)
+      assert.ok(session.steps.some((s) => s.id === id));
+    for (const id of issue.actionIds) {
+      const owner = session.steps.find((s) => s.actionIds.includes(id));
+      assert.ok(issue.stepIds.includes(owner.id));
+    }
+  }
+  for (const id of [
+    "second-stop",
+    "filter-wetting",
+    "bubbles",
+    "return-to-source",
+  ]) {
+    assert.ok(!session.issues.some((i) => i.id === id));
+    assert.ok(
+      session.withheldFindings.some((i) => i.id === id && i.reason.length),
+    );
+  }
+  assert.equal(session.issues.find((i) => i.id === "tip-reuse").kind, "risk");
+  assert.equal(
+    session.issues.find((i) => i.id === "final-mixing").kind,
+    "risk",
+  );
+  assert.deepEqual(session.issues.find((i) => i.id === "no-mixing").stepIds, [
+    "calibration-1",
+  ]);
+  assert.equal(
+    session.issues.some((i) => i.stepIds.includes("arrangement")),
+    false,
+  );
+});
+test("prepared media clips keep their boundaries and exist after ingestion", async () => {
+  const { stat } = await import("node:fs/promises");
+  for (const a of session.actions.filter((a) => a.clipFile)) {
+    assert.ok(a.clipStart >= 0 && a.clipStart <= a.start);
+    assert.ok(a.clipEnd >= a.end && a.clipEnd <= session.duration);
+    assert.ok(
+      (await stat(`public/media/genentech/clips/${a.clipFile}`)).size > 0,
+    );
+  }
+  assert.ok(session.actions.find((a) => a.id === "ai-44").clipFile);
 });

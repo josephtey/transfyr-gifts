@@ -24,6 +24,7 @@ export type SummaryNote = {
 };
 export type Issue = {
   id: string;
+  tier: "major" | "additional";
   kind: "error" | "risk" | "observation";
   category: string;
   title: string;
@@ -33,6 +34,7 @@ export type Issue = {
   actionIds: string[];
   contextActionIds: string[];
   scope: "events" | "run-level";
+  stepIds: string[];
 };
 export type Action = {
   annotation?: string;
@@ -50,12 +52,34 @@ export type Action = {
   clipEnd?: number;
   clipFile?: string;
 };
+export type RecordSegment = {
+  id: string;
+  actionIds: string[];
+};
+export type ProtocolInstruction = {
+  id: string;
+  title: string;
+  text: string;
+  label: string;
+};
+export type RecordStep = {
+  id: string;
+  name: string;
+  instruction: string;
+  start: number | null;
+  end: number | null;
+  actionIds: string[];
+  segments: RecordSegment[];
+  counts: { errors: number; observations: number; risks: number } | null;
+};
 export type Session = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   customer: string;
   operator: string;
   title: string;
   duration: number;
+  steps: RecordStep[];
+  protocol: ProtocolInstruction[];
   actions: Action[];
   reviews: HumanReview[];
   issues: Issue[];

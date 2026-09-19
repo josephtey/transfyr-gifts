@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { loadEnvFile } from "node:process";
 import { readFileSync } from "node:fs";
 import type { Session } from "../src/lib/types";
+import { countFindings } from "../src/lib/findings";
 loadEnvFile(".env.local");
 const base = process.env.TEST_BASE_URL || "http://localhost:3000";
 const data: Session = JSON.parse(readFileSync("src/data/session.json", "utf8"));
@@ -62,6 +63,7 @@ test("one timeline connects every finding and keeps AI records separate from hum
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await login(page, "/genentech?t=390");
+  await page.getByRole("button", { name: "Show additional findings" }).click();
   await expect(
     page.getByRole("heading", { name: "System of Record" }),
   ).toBeVisible();
@@ -71,6 +73,30 @@ test("one timeline connects every finding and keeps AI records separate from hum
   await expect(page.locator(".ai-action-text")).toHaveText(
     data.actions.map((a) => a.text),
   );
+  await expect(page.locator(".record-step-heading h3")).toHaveText(
+    data.steps.map((step) => step.name),
+  );
+  for (const step of data.steps) {
+    await expect(
+      page.locator(`[data-step="${step.id}"] .ai-action-text`),
+    ).toHaveText(
+      step.actionIds.map((id) => data.actions.find((a) => a.id === id)!.text),
+    );
+  }
+  for (const step of data.steps) {
+    const expand = page.getByRole("button", {
+      name: `Expand ${step.name}`,
+      exact: true,
+    });
+    if (await expand.count()) await expand.click();
+  }
+  await expect(page.locator(".step-instruction")).toHaveText(
+    data.steps.map((step) => step.instruction),
+  );
+  await expect(page.locator('[data-step="blanks"] .step-empty')).toContainText(
+    "No recorded actions identified",
+  );
+  await expect(page.locator('[data-step="blanks"] [data-id]')).toHaveCount(0);
   await expect(page.locator(".review-count strong")).toHaveText(
     String(data.counts.errorNotes),
   );
@@ -84,7 +110,14 @@ test("one timeline connects every finding and keeps AI records separate from hum
   ).toHaveCount(0);
   const expectedLinks = data.issues
     .flatMap((i) =>
-      [...i.actionIds, ...i.contextActionIds].map((id) => `${i.id}:${id}`),
+      [...i.actionIds, ...i.contextActionIds]
+        .filter((id) =>
+          data.steps.some(
+            (step) =>
+              i.stepIds.includes(step.id) && step.actionIds.includes(id),
+          ),
+        )
+        .map((id) => `${i.id}:${id}`),
     )
     .sort();
   await expect
@@ -251,9 +284,12 @@ test("one timeline connects every finding and keeps AI records separate from hum
     fullPage: true,
   });
   // Cross-segment links navigate the same timeline, including later findings.
-  await page.locator('[data-issue="bubbles"] .issue-trigger').first().click();
+  await page
+    .locator('[data-issue="calibration-two-volume"] .issue-trigger')
+    .first()
+    .click();
   await expect(
-    page.locator('[data-issue="bubbles"] .issue-kind').first(),
+    page.locator('[data-issue="calibration-two-volume"] .issue-kind').first(),
   ).toContainText("Observation");
   await page
     .locator('[data-issue="missing-water"] .issue-trigger')
@@ -315,4 +351,206 @@ test("one timeline connects every finding and keeps AI records separate from hum
   await page.getByRole("button", { name: "Lock review" }).click();
   await expect(page.getByLabel("Access password")).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test("steps start collapsed with counts and durations, and both step controls seek", async ({
+  page,
+}) => {
+  await login(page);
+  await expect(page.locator('.step-toggle[aria-expanded="false"]')).toHaveCount(
+    data.steps.length,
+  );
+  await expect(page.locator(".record-step-body:visible")).toHaveCount(0);
+  const format = (n: number) =>
+    `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, "0")}`;
+  for (const step of data.steps) {
+    const header = page.locator(
+      `[data-step="${step.id}"] .record-step-heading`,
+    );
+    await expect(header.locator(".step-duration")).toHaveText(
+      step.start === null || step.end === null
+        ? "—"
+        : format(step.end - step.start),
+    );
+    if (step.counts) {
+      const counts = countFindings(
+        data.issues.filter((i) => i.tier === "major"),
+        data.reviews,
+        step,
+      );
+      for (const [kind, count] of Object.entries(counts)) {
+        await expect(header.locator(".step-counts")).toContainText(
+          `${count} ${count === 1 ? kind.slice(0, -1) : kind}`,
+        );
+      }
+    } else
+      await expect(header.locator(".step-counts")).toContainText(
+        "No recorded actions identified",
+      );
+  }
+  await page
+    .getByRole("button", { name: "Expand Tube arrangement", exact: true })
+    .click();
+  await expect(
+    page.locator('[data-step="arrangement"] .issue-trigger'),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Collapse Tube arrangement", exact: true })
+    .click();
+  await page.screenshot({
+    path: "/tmp/transfyr-collapsed-steps.png",
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Expand Calibration 1", exact: true })
+    .click();
+  await expect(
+    page.locator('[data-step="calibration-1"] .record-step-body'),
+  ).toBeVisible();
+  expect(
+    await page.locator("video").evaluate((v: HTMLVideoElement) => v.paused),
+  ).toBe(true);
+  await page
+    .getByRole("button", { name: "Collapse Calibration 1", exact: true })
+    .click();
+  const stage = data.steps.find((s) => s.id === "calibration-2")!;
+  await page.locator('[data-step="calibration-2"] .step-jump').click();
+  await expect
+    .poll(() =>
+      page.locator("video").evaluate((v: HTMLVideoElement) => v.currentTime),
+    )
+    .toBeGreaterThanOrEqual(stage.start!);
+  await expect
+    .poll(() =>
+      page.locator("video").evaluate((v: HTMLVideoElement) => v.paused),
+    )
+    .toBe(false);
+  await expect(
+    page.getByRole("button", { name: "Collapse Calibration 2", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Jump to Calibration 3", exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      page.locator("video").evaluate((v: HTMLVideoElement) => v.currentTime),
+    )
+    .toBeGreaterThanOrEqual(
+      data.steps.find((s) => s.id === "calibration-3")!.start!,
+    );
+  await expect(
+    page.locator('[data-scrubber-step="calibration-3"]'),
+  ).toHaveAttribute("aria-current", "step");
+  await expect(
+    page.getByRole("button", { name: "Collapse Calibration 3", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('[data-step="blanks"] .step-jump')).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Jump to Blanks", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("major findings are the default, and showing more updates cards, counts, and action highlights together", async ({
+  page,
+}) => {
+  await login(page);
+  const toggle = page.getByRole("button", { name: "Show additional findings" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  const major = data.issues.filter((i) => i.tier === "major");
+  await expect(page.locator(".review-count strong")).toHaveText(
+    String(countFindings(major, data.reviews).errors),
+  );
+  for (const step of data.steps)
+    await page
+      .getByRole("button", { name: `Expand ${step.name}`, exact: true })
+      .click();
+  for (const issue of data.issues.filter((i) => i.tier === "additional"))
+    await expect(page.locator(`[data-issue="${issue.id}"]`)).toHaveCount(0);
+  await expect(page.locator('[data-id="ai-26"]')).not.toHaveClass(/has-error/);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".review-count strong")).toHaveText(
+    String(data.counts.errorNotes),
+  );
+  await expect(
+    page.locator('[data-issue="wrong-tube"] .issue-trigger'),
+  ).toHaveCount(1);
+  await expect(page.locator('[data-id="ai-26"]')).toHaveClass(/has-error/);
+  const extra = page.locator('[data-issue="wrong-tube"] .issue-trigger');
+  await extra.click();
+  await expect(page.locator(".insight-overlay")).toContainText(
+    "Stock dispensed",
+  );
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await toggle.click();
+  await expect(page.locator('[data-issue="wrong-tube"]')).toHaveCount(0);
+  await expect(
+    page.locator(".insight-overlay").filter({ hasText: "Stock dispensed" }),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('[data-step="arrangement"] .issue-trigger'),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('[data-step="arrangement"] .step-counts'),
+  ).toContainText("0 errors");
+  for (const id of [
+    "second-stop",
+    "filter-wetting",
+    "bubbles",
+    "return-to-source",
+  ])
+    await expect(page.locator(`[data-issue="${id}"]`)).toHaveCount(0);
+});
+
+test("category colors stay consistent through hover, selection, playback and connectors", async ({
+  page,
+}) => {
+  await login(page);
+  for (const step of data.steps)
+    await page
+      .getByRole("button", { name: `Expand ${step.name}`, exact: true })
+      .click();
+  const colors = {
+    error: "rgb(240, 128, 128)",
+    risk: "rgb(237, 204, 103)",
+    observation: "rgb(130, 182, 244)",
+  };
+  for (const [id, kind] of [
+    ["tip-in-water", "error"],
+    ["tip-reuse", "risk"],
+    ["calibration-two-volume", "observation"],
+  ] as const) {
+    const finding = page.locator(`[data-issue="${id}"] .issue-trigger`).first();
+    const expected = colors[kind];
+    await finding.scrollIntoViewIfNeeded();
+    await finding.hover();
+    await expect(finding.locator("strong")).toHaveCSS("color", expected);
+    await finding.click();
+    await expect
+      .poll(() =>
+        page.locator("video").evaluate((v: HTMLVideoElement) => v.paused),
+      )
+      .toBe(false);
+    await page.getByRole("button", { name: "Pause", exact: true }).click();
+    await expect(finding.locator("strong")).toHaveCSS("color", expected);
+    await expect(finding.locator(".issue-kind")).toHaveCSS("color", expected);
+    await expect(
+      page
+        .locator(`.evidence-link[data-issue-link="${id}"] .connection-stroke`)
+        .first(),
+    ).toHaveCSS("stroke", expected);
+    for (const action of await page
+      .locator('.log-entry[data-linked="true"]')
+      .all()) {
+      await expect(action).toHaveCSS("border-left-color", expected);
+    }
+    await expect(page.locator(".insight-overlay")).toHaveCSS(
+      "border-left-color",
+      expected,
+    );
+  }
+  await page.screenshot({
+    path: "/tmp/transfyr-category-colors.png",
+    fullPage: true,
+  });
 });

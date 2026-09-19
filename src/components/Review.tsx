@@ -13,9 +13,11 @@ import {
   MoreHorizontal,
   Link as LinkIcon,
   Check,
+  ChevronDown,
 } from "lucide-react";
-import type { Session, Action, Issue } from "../lib/types";
+import type { Session, Action, Issue, RecordStep } from "../lib/types";
 import EvidenceSection from "./EvidenceSection";
+import { countFindings } from "../lib/findings";
 const clock = (t: number) =>
   `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 const kindLabel = { error: "Error", risk: "Risk", observation: "Observation" };
@@ -42,11 +44,39 @@ export default function Review({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [collapsedSteps, setCollapsedSteps] = useState(
+    () => new Set(session.steps.map((step) => step.id)),
+  );
+  const [hasNavigated, setHasNavigated] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const visibleIssues = useMemo(
+    () => session.issues.filter((issue) => showMore || issue.tier === "major"),
+    [session.issues, showMore],
+  );
+  const visibleCounts = useMemo(
+    () => countFindings(visibleIssues, session.reviews),
+    [visibleIssues, session.reviews],
+  );
   const duration = session.duration;
   const actionById = useMemo(
     () => new Map(session.actions.map((a) => [a.id, a])),
     [session],
   );
+  const steps = useMemo(
+    () =>
+      session.steps.map((step) => ({
+        ...step,
+        counts: step.actionIds.length
+          ? countFindings(visibleIssues, session.reviews, step)
+          : null,
+        sections: step.segments.map((task) => ({
+          ...task,
+          actions: task.actionIds.map((id) => actionById.get(id)!),
+        })),
+      })),
+    [session.steps, actionById, visibleIssues, session.reviews],
+  );
+  const timedSteps = steps.filter((step) => step.start !== null);
   const activeAction = session.actions.find(
     (a) => time >= a.start && time < a.end,
   );
@@ -56,8 +86,8 @@ export default function Review({
       ? actionById.get(selected)
       : activeAction;
   const downloadAction = (selected && actionById.get(selected)) || focusAction;
-  const chosenIssue = session.issues.find((i) => i.id === selectedIssueId);
-  const highlightedIssue = session.issues.find(
+  const chosenIssue = visibleIssues.find((i) => i.id === selectedIssueId);
+  const highlightedIssue = visibleIssues.find(
     (i) => i.id === (hoveredIssueId || selectedIssueId),
   );
   const linkedActions = new Set(
@@ -66,7 +96,7 @@ export default function Review({
       : [],
   );
   const relatedIssues = new Set(focusAction?.issueIds || []);
-  const primaryIssues = session.issues.filter(
+  const primaryIssues = visibleIssues.filter(
     (i) => focusAction && i.actionIds.includes(focusAction.id),
   );
   const overlayIssue =
@@ -80,11 +110,11 @@ export default function Review({
   const errorReviewIds = useMemo(
     () =>
       new Set(
-        session.issues
+        visibleIssues
           .filter((i) => i.kind === "error")
           .flatMap((i) => i.reviewIds),
       ),
-    [session],
+    [visibleIssues],
   );
   const markers = useMemo(
     () =>
@@ -99,6 +129,7 @@ export default function Review({
   function seek(t: number, play = false, clip = false) {
     const target = Math.max(0, Math.min(duration, t));
     if (!clip) clipEnd.current = null;
+    setHasNavigated(true);
     setTime(target);
     setError("");
     setDismissed(null);
@@ -107,7 +138,10 @@ export default function Review({
       if (play)
         void video.current
           .play()
-          .catch(() => setError("Press play to start the recording."));
+          .catch((reason: DOMException) => {
+            if (reason.name !== "AbortError")
+              setError("Press play to start the recording.");
+          });
     }
   }
   function togglePlay() {
@@ -118,7 +152,10 @@ export default function Review({
       clipEnd.current = null;
       void v
         .play()
-        .catch(() => setError("The recording could not play. Try reloading."));
+        .catch((reason: DOMException) => {
+          if (reason.name !== "AbortError")
+            setError("The recording could not play. Try reloading.");
+        });
     } else v.pause();
   }
   function changeMode() {
@@ -167,6 +204,7 @@ export default function Review({
     const t = Number(q.get("t"));
     if (Number.isFinite(t) && t > 0) {
       pending.current = { time: Math.min(duration, t), playing: false };
+      setHasNavigated(true);
       setTime(Math.min(duration, t));
       if (video.current && video.current.readyState >= 1) {
         video.current.currentTime = Math.min(duration, t);
@@ -174,28 +212,61 @@ export default function Review({
       }
     }
     if (actionById.has(q.get("action") || "")) setSelected(q.get("action"));
-    if (session.issues.some((i) => i.id === q.get("issue")))
-      setSelectedIssueId(q.get("issue"));
+    const linkedIssue = session.issues.find((i) => i.id === q.get("issue"));
+    if (linkedIssue) {
+      setSelectedIssueId(linkedIssue.id);
+      if (linkedIssue.tier === "additional") setShowMore(true);
+    }
   }, [duration, actionById, session.issues]);
+  const followedActionId = playing
+    ? activeAction?.id
+    : selected || activeAction?.id;
+  const followedStepId = session.steps.find((step) =>
+    step.actionIds.includes(followedActionId || ""),
+  )?.id;
+  useEffect(() => {
+    if ((!playing && !hasNavigated) || !followedStepId) return;
+    setCollapsedSteps((previous) => {
+      if (!previous.has(followedStepId)) return previous;
+      const next = new Set(previous);
+      next.delete(followedStepId);
+      return next;
+    });
+  }, [followedStepId, followedActionId, playing, hasNavigated]);
   useEffect(() => {
     const id = playing ? activeAction?.id : selected || activeAction?.id;
-    if (!id || !list.current) return;
+    if (
+      !id ||
+      !list.current ||
+      !followedStepId ||
+      collapsedSteps.has(followedStepId)
+    )
+      return;
     const el = list.current.querySelector<HTMLElement>(`[data-id="${id}"]`);
     if (el) {
       const top =
         el.getBoundingClientRect().top -
         list.current.getBoundingClientRect().top +
         list.current.scrollTop;
+      const headerHeight =
+        el
+          .closest(".record-step")
+          ?.querySelector(".record-step-heading")
+          ?.getBoundingClientRect().height || 0;
       if (
         playing ||
-        top < list.current.scrollTop ||
+        top < list.current.scrollTop + headerHeight ||
         top + Math.min(el.offsetHeight, 200) >
           list.current.scrollTop + list.current.clientHeight
       )
         list.current.scrollTo({
           top: Math.max(
             0,
-            top - (playing ? list.current.clientHeight * 0.32 : 55),
+            top -
+              Math.max(
+                headerHeight + 16,
+                playing ? list.current.clientHeight * 0.32 : 55,
+              ),
           ),
           behavior:
             playing &&
@@ -204,7 +275,7 @@ export default function Review({
               : "instant",
         });
     }
-  }, [activeAction?.id, selected, playing]);
+  }, [activeAction?.id, selected, playing, followedStepId, collapsedSteps]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (
@@ -232,17 +303,27 @@ export default function Review({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
-  const sections = useMemo(() => {
-    const result: { id: string; task: string; actions: Action[] }[] = [];
-    for (const action of session.actions) {
-      const last = result[result.length - 1];
-      if (last?.task === action.task) last.actions.push(action);
-      else result.push({ id: action.id, task: action.task, actions: [action] });
-    }
-    return result;
-  }, [session.actions]);
+  function toggleStep(id: string) {
+    setCollapsedSteps((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function jumpToStep(step: RecordStep) {
+    if (step.start === null) return;
+    setCollapsedSteps((previous) => {
+      const next = new Set(previous);
+      next.delete(step.id);
+      return next;
+    });
+    setSelected(null);
+    setSelectedIssueId(null);
+    seek(step.start, true);
+  }
   function renderAction(action: Action) {
-    const supportingIssues = session.issues.filter((i) =>
+    const supportingIssues = visibleIssues.filter((i) =>
       i.actionIds.includes(action.id),
     );
     const hasError = supportingIssues.some((i) => i.kind === "error");
@@ -251,6 +332,12 @@ export default function Review({
     const linked = linkedActions.has(action.id);
     const contextOnly =
       linked && highlightedIssue?.contextActionIds.includes(action.id);
+    const actionKind =
+      linked && highlightedIssue
+        ? highlightedIssue.kind
+        : (["error", "risk", "observation"] as const).find((kind) =>
+            supportingIssues.some((issue) => issue.kind === kind),
+          );
     return (
       <article
         key={action.id}
@@ -258,7 +345,7 @@ export default function Review({
         data-linked={linked ? "true" : "false"}
         data-context={contextOnly ? "true" : "false"}
         aria-current={current ? "step" : undefined}
-        className={`log-entry ${hasError ? "has-error" : supportingIssues.length ? "has-finding" : ""} ${current ? "current" : ""} ${linked ? "linked" : ""} ${contextOnly ? "context-link" : ""} ${expanded ? "expanded" : ""}`}
+        className={`log-entry ${actionKind ? `kind-${actionKind}` : ""} ${hasError ? "has-error" : supportingIssues.length ? "has-finding" : ""} ${current ? "current" : ""} ${linked ? "linked" : ""} ${contextOnly ? "context-link" : ""} ${expanded ? "expanded" : ""}`}
       >
         {current && (
           <span
@@ -281,9 +368,7 @@ export default function Review({
             {current && <span className="now-label">Now</span>}
           </time>
           <span>
-            <span className="ai-action-text">
-              {action.text}
-            </span>
+            <span className="ai-action-text">{action.text}</span>
           </span>
         </button>
       </article>
@@ -337,9 +422,9 @@ export default function Review({
         </h1>
         <div
           className="review-count"
-          title={`${session.counts.timedErrorNotes} timestamped or inherited spreadsheet error notes + ${session.counts.runLevelErrorNotes} run-level error. Notes supporting multiple categories count once. Risks and observations are separate.`}
+          title="Distinct reviewed error notes in this view. Risks and observations are counted separately."
         >
-          <strong>{session.counts.errorNotes}</strong>
+          <strong>{visibleCounts.errors}</strong>
           <span>reviewed error notes</span>
         </div>
         <div className="header-tools">
@@ -459,6 +544,34 @@ export default function Review({
               )}
             </div>
             <div className="player-controls">
+              <div className="step-scrubber" aria-label="Protocol steps">
+                {timedSteps.map((step, index) => {
+                  const end = timedSteps[index + 1]?.start ?? duration;
+                  const width = ((end! - step.start!) / duration) * 100;
+                  const number = steps.findIndex((s) => s.id === step.id) + 1;
+                  return (
+                    <button
+                      key={step.id}
+                      data-scrubber-step={step.id}
+                      style={{
+                        left: `${(step.start! / duration) * 100}%`,
+                        width: `${width}%`,
+                      }}
+                      title={`${step.name} · ${clock(step.start!)}`}
+                      aria-label={`Jump to ${step.name}`}
+                      aria-current={
+                        time >= step.start! && time < end! ? "step" : undefined
+                      }
+                      onClick={() => jumpToStep(step)}
+                    >
+                      <span>{number}</span>
+                      {width > 8 && (
+                        <span className="scrubber-step-name">{step.name}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
               <div className="timeline">
                 <input
                   type="range"
@@ -564,9 +677,7 @@ export default function Review({
               </div>
             )}
             {!overlayVisible && activeAction && (
-              <p className="action-caption">
-                {activeAction.text}
-              </p>
+              <p className="action-caption">{activeAction.text}</p>
             )}
           </div>
           {error && (
@@ -580,6 +691,22 @@ export default function Review({
             <div className="log-heading">
               <h2>System of Record</h2>
             </div>
+            <button
+              className="findings-toggle"
+              aria-label="Show additional findings"
+              aria-pressed={showMore}
+              onClick={() => {
+                setShowMore(!showMore);
+                setSelectedIssueId(null);
+                setHoveredIssueId(null);
+                setDismissed(null);
+              }}
+            >
+              <span className="toggle-track" aria-hidden="true">
+                <span />
+              </span>
+              Show more
+            </button>
           </div>
           <div
             ref={list}
@@ -587,26 +714,117 @@ export default function Review({
             tabIndex={0}
             aria-label="Action and insight timeline"
           >
-            {sections.map((section) => (
-              <EvidenceSection
-                key={section.id}
-                id={section.id}
-                actions={section.actions.map(renderAction)}
-                findings={session.issues
-                  .filter((issue) =>
-                    section.actions.some(
-                      (a) =>
-                        issue.actionIds.includes(a.id) ||
-                        issue.contextActionIds.includes(a.id),
-                    ),
-                  )
-                  .map((issue) => ({
-                    issue,
-                    node: renderIssue(issue, section.actions),
-                  }))}
-                highlightedIssue={hoveredIssueId || selectedIssueId}
-                focusedAction={focusAction?.id}
-              />
+            {steps.map((step, index) => (
+              <section
+                className="record-step"
+                key={step.id}
+                data-step={step.id}
+                aria-labelledby={`heading-${step.id}`}
+              >
+                <header
+                  className={`record-step-heading ${step.start !== null && step.end !== null && time >= step.start && time < step.end ? "is-current" : ""}`}
+                >
+                  <div className="step-heading-row">
+                    <span className="step-number">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <h3 id={`heading-${step.id}`}>
+                      <button
+                        className="step-jump"
+                        disabled={step.start === null}
+                        onClick={() => jumpToStep(step)}
+                      >
+                        {step.name}
+                      </button>
+                    </h3>
+                    <time className="step-duration" title="Recorded duration">
+                      {step.start !== null && step.end !== null
+                        ? clock(step.end - step.start)
+                        : "—"}
+                    </time>
+                    <button
+                      className="step-toggle"
+                      onClick={() => toggleStep(step.id)}
+                      aria-expanded={!collapsedSteps.has(step.id)}
+                      aria-controls={`body-${step.id}`}
+                      aria-label={`${collapsedSteps.has(step.id) ? "Expand" : "Collapse"} ${step.name}`}
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  </div>
+                  <div className="step-counts">
+                    {step.counts ? (
+                      <>
+                        <span
+                          className={step.counts.errors ? "kind-error" : "zero"}
+                        >
+                          {step.counts.errors}{" "}
+                          {step.counts.errors === 1 ? "error" : "errors"}
+                        </span>
+                        <span
+                          className={
+                            step.counts.observations
+                              ? "kind-observation"
+                              : "zero"
+                          }
+                        >
+                          {step.counts.observations}{" "}
+                          {step.counts.observations === 1
+                            ? "observation"
+                            : "observations"}
+                        </span>
+                        <span
+                          className={step.counts.risks ? "kind-risk" : "zero"}
+                        >
+                          {step.counts.risks}{" "}
+                          {step.counts.risks === 1 ? "risk" : "risks"}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="zero">
+                        No recorded actions identified
+                      </span>
+                    )}
+                  </div>
+                  {!collapsedSteps.has(step.id) && (
+                    <p className="step-instruction">{step.instruction}</p>
+                  )}
+                </header>
+                <div
+                  className="record-step-body"
+                  id={`body-${step.id}`}
+                  hidden={collapsedSteps.has(step.id)}
+                >
+                  {step.actionIds.length === 0 && (
+                    <p className="step-empty">
+                      No recorded actions identified.
+                    </p>
+                  )}
+                  {step.sections.map((section) => (
+                    <EvidenceSection
+                      key={section.id}
+                      id={section.id}
+                      actions={<>{section.actions.map(renderAction)}</>}
+                      findings={visibleIssues
+                        .filter(
+                          (issue) =>
+                            issue.stepIds.includes(step.id) &&
+                            section.actions.some(
+                              (a) =>
+                                issue.actionIds.includes(a.id) ||
+                                issue.contextActionIds.includes(a.id),
+                            ),
+                        )
+                        .map((issue) => ({
+                          issue,
+                          node: renderIssue(issue, section.actions),
+                        }))}
+                      highlightedIssue={hoveredIssueId || selectedIssueId}
+                      focusedAction={focusAction?.id}
+                    />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         </section>

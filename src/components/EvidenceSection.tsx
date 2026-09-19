@@ -45,6 +45,7 @@ export default function EvidenceSection({
   const [visibleFindings, setVisibleFindings] = useState<Set<string>>(
     new Set(),
   );
+  const findingIds = findings.map(({ issue }) => issue.id).join(",");
 
   useEffect(() => {
     const section = root.current!;
@@ -75,7 +76,7 @@ export default function EvidenceSection({
       .querySelectorAll(".evidence-finding")
       .forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, []);
+  }, [findingIds]);
 
   useLayoutEffect(() => {
     const section = root.current!;
@@ -205,7 +206,7 @@ export default function EvidenceSection({
         {findings.map(({ issue, node }) => (
           <div
             key={issue.id}
-            className="evidence-finding"
+            className={`evidence-finding kind-${issue.kind}`}
             data-finding={issue.id}
             style={
               geometry.height
