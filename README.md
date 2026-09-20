@@ -1,6 +1,10 @@
 # Transfyr customer reviews
 
-A private video workspace built with Next.js and React: paired original/perception recordings, one scrolling action-and-finding timeline with visible evidence connectors. The System of Record preserves exact AI actions; human adjudications appear in the findings on the right; the current AI action stays over the top of the video, and the active finding with its full description sits below the scrubber with no dismiss control. Click an action or finding to play its clip. Animated connectors and a live playhead follow the recording in the System of Record. Dark mode, no dashboard, branding, customer name, share menu, or exit control. The access screen is a single password box; Enter submits it. Protocol stages start expanded with durations and counts; the video starts paused at the first Major error. Shared timestamps take precedence. Stage titles and scrubber chapters seek the recording; playback opens and follows the current stage. Manually expanding a stage scrolls to its header without seeking. Major and Minor are independently selectable, starting with Major only. Major includes every human summary theme; Minor restores the remaining human review. Scientific uncertainty is retained in both tiers. Step counts, highlights and colored scrubber markers follow the selected tiers. The two header filters show the available error counts. Unresolved claims are not presented as confirmed errors.
+A private, result-led video review built with Next.js and React. The supplied outcome explanation determines the three coarse execution records and the findings shown beside them. Reported result metrics appear above the recording. The full AI log and original adjudications remain in the private dataset; the exact current AI action appears over the video, while the selected finding and its details appear below it. There are no severity filters.
+
+Original and perception videos stay mounted. Switching holds the old frame until the alternate source is ready at the same timestamp, then crossfades while preserving playback, speed, volume, mute and clip boundaries. The unbranded access page remains a single password field.
+
+The previous fine-grained experience is preserved at `/<customer>/archive`, with a frozen private dataset and its original Major/Minor filters. The same password protects both views. The archive URL survives the login redirect.
 
 ## Run locally
 
@@ -25,7 +29,7 @@ The route is `/<customer>`. To use a customer subdomain, add your owned domain t
 
 Deployment scope: **joe-5572**. Do not deploy to the Transfyr organization. Project: `transfyr-gifts`.
 
-- Private Vercel Blob contains `media/<customer>/…` and `data/<customer>/session-v4.json`.
+- Private Vercel Blob contains `media/<customer>/…` and `data/<customer>/session-v5.json`. The frozen previous version uses `data/<customer>/session-archive-2026-09-20.json`; locally it is `src/data/session-archive.json`. Archive data is also excluded from Git and deployment uploads.
 - `BLOB_MEDIA=1` makes the server load review data privately and route media requests to authenticated handlers.
 - A valid customer session is required to issue an exact-file, read-only Blob URL. URLs expire after one hour; anyone holding an issued URL can use it until expiry. The unsigned storage URLs deny access.
 - The Blob CDN handles byte-range playback. Attachment-download requests are disabled.
@@ -40,4 +44,4 @@ Upload evidence from the source machine with `node --env-file=.env.local scripts
 
 ## Evidence handling
 
-The human review is primary. Exact AI text, original intervals and human-row mappings remain in the private audit; the System of Record displays the original AI text and the findings contain human adjudication, without editing history or correction badges. Every finding is linked to its supporting actions, with separate context links for sequence-level evidence. Categories may recur alongside different action groups; the headline counts distinct error notes rather than repeated visual instances. Clip boundaries are editorial. Browser recordings are compressed derivatives of the original sources, not the full-size source masters. Neither visible pipette settings nor model descriptions establish actual volumes or final concentrations.
+The human review is primary. Exact AI text, original intervals and human-row mappings remain in the private audit; the System of Record displays neutral step summaries tied to original AI intervals and the findings contain human adjudication, without editing history or correction badges. Every finding is linked to its supporting actions, with separate context links for sequence-level evidence. Categories may recur alongside different action groups; the headline counts distinct error notes rather than repeated visual instances. Clip boundaries are editorial. Browser recordings are compressed derivatives of the original sources, not the full-size source masters. Neither visible pipette settings nor model descriptions establish actual volumes or final concentrations.

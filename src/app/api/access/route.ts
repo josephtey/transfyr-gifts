@@ -17,7 +17,11 @@ export async function POST(request: NextRequest) {
   const target = new URL(`/${customer}/access`, requestOrigin);
   const next = String(form.get("next") || `/${customer}`);
   const safeNext =
-    next === "/" || next === `/${customer}` || next.startsWith(`/${customer}?`)
+    next === "/" ||
+    next === `/${customer}` ||
+    next.startsWith(`/${customer}?`) ||
+    next === `/${customer}/archive` ||
+    next.startsWith(`/${customer}/archive?`)
       ? next
       : `/${customer}`;
   target.searchParams.set("next", safeNext);

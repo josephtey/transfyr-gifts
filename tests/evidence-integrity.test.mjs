@@ -316,3 +316,52 @@ test("timeline clusters retain every selected category's notes and omissions rem
     }
   }
 });
+
+test("the outcome explanation has three coarse records and only traceable, relevant contributors", () => {
+  assert.equal(session.schemaVersion, 5);
+  assert.equal(session.analysis.stages.length, 3);
+  assert.equal(session.analysis.findings.length, 8);
+  const included = new Set(
+    session.analysis.findings.map((finding) => finding.id),
+  );
+  assert.deepEqual(
+    new Set(session.analysis.stages.flatMap((stage) => stage.findingIds)),
+    included,
+  );
+  for (const stage of session.analysis.stages) {
+    assert.ok(session.steps.some((step) => step.id === stage.stepId));
+    assert.ok(stage.record && stage.recordTitle);
+    for (const id of stage.findingIds)
+      assert.deepEqual(
+        session.analysis.findings.find((finding) => finding.id === id).stepIds,
+        [stage.stepId],
+      );
+  }
+  for (const finding of session.analysis.findings) {
+    assert.ok(finding.reviewIds.length || finding.summaryIds.length);
+    for (const id of finding.reviewIds) assert.ok(reviews.has(id));
+    for (const id of finding.actionIds.concat(finding.contextActionIds))
+      assert.ok(actions.has(id));
+    for (const id of finding.sourceIssueIds)
+      assert.ok(session.issues.some((issue) => issue.id === id));
+    assert.ok(finding.description.length);
+  }
+  const excluded = [
+    "tip-in-water",
+    "tip-contact",
+    "tip-reuse",
+    "tip-fit",
+    "bubbles",
+    "return-to-source",
+  ];
+  assert.ok(
+    session.analysis.findings.every((finding) =>
+      finding.sourceIssueIds.every((id) => !excluded.includes(id)),
+    ),
+  );
+  assert.match(
+    session.analysis.findings.find((finding) => finding.id === "final-water")
+      .description,
+    /If .*fully dispensed/,
+  );
+});

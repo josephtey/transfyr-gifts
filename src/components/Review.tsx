@@ -9,13 +9,17 @@ import {
   Scan,
   ChevronDown,
 } from "lucide-react";
-import type { Session, Action, Issue, RecordStep } from "../lib/types";
+import type { Session, Issue, RecordStep } from "../lib/types";
 import EvidenceSection from "./EvidenceSection";
-import { countFindings, buildTimelineMarkers } from "../lib/findings";
-const clock = (t: number) =>
-  `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
-const tierLabel = { major: "Major", minor: "Minor" };
+import SynchronizedVideo, {
+  type SynchronizedVideoHandle,
+} from "./SynchronizedVideo";
+import { buildTimelineMarkers } from "../lib/findings";
+
+const clock = (time: number) =>
+  `${Math.floor(time / 60)}:${String(Math.floor(time % 60)).padStart(2, "0")}`;
 const kindLabel = { error: "Error", risk: "Risk", observation: "Observation" };
+
 export default function Review({
   session,
   slug,
@@ -23,282 +27,111 @@ export default function Review({
   session: Session;
   slug: string;
 }) {
-  const video = useRef<HTMLVideoElement>(null);
+  const video = useRef<SynchronizedVideoHandle>(null);
   const player = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const manualStepScroll = useRef<string | null>(null);
-  const pending = useRef<{ time: number; playing: boolean } | null>(null);
   const clipEnd = useRef<number | null>(null);
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [mode, setMode] = useState<"original" | "overlay">("original");
   const [muted, setMuted] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [hoveredIssueId, setHoveredIssueId] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [collapsedSteps, setCollapsedSteps] = useState(() => new Set<string>());
-  const [hasNavigated, setHasNavigated] = useState(false);
-  const [selectedTiers, setSelectedTiers] = useState<Set<Issue["tier"]>>(
-    () => new Set(["major"]),
-  );
-  const visibleIssues = useMemo(
-    () => session.issues.filter((issue) => selectedTiers.has(issue.tier)),
-    [session.issues, selectedTiers],
-  );
-  const firstMajorError = useMemo(
-    () =>
-      buildTimelineMarkers(
-        session.issues.filter((issue) => issue.tier === "major"),
-        session.reviews,
-        session.steps,
-      ).find((marker) => marker.kind === "error"),
-    [session],
-  );
-  const tierCounts = useMemo(
-    () =>
-      Object.fromEntries(
-        (["major", "minor"] as const).map((tier) => [
-          tier,
-          countFindings(
-            session.issues.filter((issue) => issue.tier === tier),
-            session.reviews,
-          ).errors,
-        ]),
-      ),
-    [session.issues, session.reviews],
-  );
-  const duration = session.duration;
-  const actionById = useMemo(
-    () => new Map(session.actions.map((a) => [a.id, a])),
-    [session],
-  );
+  const findings = session.analysis.findings;
   const steps = useMemo(
     () =>
-      session.steps.map((step) => ({
-        ...step,
-        counts: step.actionIds.length
-          ? countFindings(visibleIssues, session.reviews, step)
-          : null,
-        sections: step.segments.map((task) => ({
-          ...task,
-          actions: task.actionIds.map((id) => actionById.get(id)!),
-        })),
+      session.analysis.stages.map((stage) => ({
+        ...session.steps.find((step) => step.id === stage.stepId)!,
+        ...stage,
+        findings: stage.findingIds.map((id) =>
+          findings.find((finding) => finding.id === id)!,
+        ),
       })),
-    [session.steps, actionById, visibleIssues, session.reviews],
+    [session, findings],
   );
-  const timedSteps = steps.filter((step) => step.start !== null);
-  const activeAction = session.actions.find(
-    (a) => time >= a.start && time < a.end,
-  );
-  const focusAction = playing
-    ? activeAction
-    : selected
-      ? actionById.get(selected)
-      : activeAction;
-  const chosenIssue = visibleIssues.find((i) => i.id === selectedIssueId);
-  const highlightedIssue = visibleIssues.find(
-    (i) => i.id === (hoveredIssueId || selectedIssueId),
-  );
-  const linkedActions = new Set(
-    highlightedIssue
-      ? [...highlightedIssue.actionIds, ...highlightedIssue.contextActionIds]
-      : [],
-  );
-  const relatedIssues = new Set(focusAction?.issueIds || []);
-  const primaryIssues = visibleIssues.filter(
-    (i) => focusAction && i.actionIds.includes(focusAction.id),
-  );
-  const overlayIssue =
-    chosenIssue ||
-    primaryIssues.find((i) => i.kind === "error") ||
-    primaryIssues[0];
-  const overlayVisible =
-    overlayIssue &&
-    (!chosenIssue || linkedActions.has(selected || focusAction?.id || ""));
   const markers = useMemo(
-    () => buildTimelineMarkers(visibleIssues, session.reviews, session.steps),
-    [visibleIssues, session.reviews, session.steps],
+    () => buildTimelineMarkers(findings, session.reviews, session.steps),
+    [findings, session],
   );
-  function seek(t: number, play = false, clip = false) {
-    const target = Math.max(0, Math.min(duration, t));
-    if (!clip) clipEnd.current = null;
-    setHasNavigated(true);
-    setTime(target);
+  const actionById = useMemo(
+    () => new Map(session.actions.map((action) => [action.id, action])),
+    [session],
+  );
+  const activeAction = session.actions.find(
+    (action) => time >= action.start && time < action.end,
+  );
+  const activeStep = steps.find(
+    (step) => time >= step.start! && time < step.end!,
+  );
+  const activeFinding =
+    findings.find((finding) => finding.id === selectedIssueId) ||
+    findings.find(
+      (finding) => activeAction && finding.actionIds.includes(activeAction.id),
+    );
+  const highlightedIssue = findings.find(
+    (finding) => finding.id === (hoveredIssueId || selectedIssueId),
+  );
+  function playbackFailed(reason: DOMException) {
+    if (reason.name !== "AbortError")
+      setError("Press play to start the recording.");
+  }
+
+  function seek(target: number, play = false, end: number | null = null) {
+    if (switching) return;
+    const next = Math.max(0, Math.min(session.duration, target));
+    clipEnd.current = end;
+    setTime(next);
     setError("");
-    if (video.current) {
-      video.current.currentTime = target;
-      if (play)
-        void video.current.play().catch((reason: DOMException) => {
-          if (reason.name !== "AbortError")
-            setError("Press play to start the recording.");
-        });
-    }
+    video.current?.seek(next);
+    if (play) void video.current?.play().catch(playbackFailed);
   }
   function togglePlay() {
-    const v = video.current;
-    if (!v) return;
-    if (v.paused) {
-      setSelected(null);
+    if (switching || !video.current) return;
+    if (video.current.isPaused()) {
       clipEnd.current = null;
-      void v.play().catch((reason: DOMException) => {
-        if (reason.name !== "AbortError")
-          setError("The recording could not play. Try reloading.");
-      });
-    } else v.pause();
+      setSelectedIssueId(null);
+      void video.current.play().catch(playbackFailed);
+    } else video.current.pause();
   }
-  function changeMode() {
-    const v = video.current;
-    if (!v) return;
-    pending.current = { time: v.currentTime, playing: !v.paused };
-    v.pause();
-    setLoading(true);
-    setError("");
-    setMode(mode === "original" ? "overlay" : "original");
-  }
-  function watchAction(action: Action, preserveIssue = false) {
-    setSelected(action.id);
-    if (!preserveIssue) setSelectedIssueId(null);
-    clipEnd.current = action.clipEnd ?? action.end + 3;
-    seek(action.clipStart ?? Math.max(0, action.start - 3), true, true);
-  }
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    const timestamp = q.get("t");
-    const t = Number(timestamp);
-    const hasTimestamp =
-      timestamp !== null &&
-      timestamp.trim() !== "" &&
-      Number.isFinite(t) &&
-      t >= 0;
-    const linkedAction = actionById.get(q.get("action") || "");
-    const linkedIssue = session.issues.find((i) => i.id === q.get("issue"));
-    const entry = linkedIssue
-      ? buildTimelineMarkers([linkedIssue], session.reviews, session.steps)[0]
-      : firstMajorError;
-    const target = Math.min(
-      duration,
-      hasTimestamp ? t : (linkedAction?.start ?? entry?.start ?? 0),
-    );
-    pending.current = { time: target, playing: false };
-    setHasNavigated(true);
-    setTime(target);
-    if (video.current && video.current.readyState >= 1) {
-      video.current.currentTime = target;
-      pending.current = null;
-    }
-    setSelected(
-      linkedAction?.id ?? (!hasTimestamp ? (entry?.actionId ?? null) : null),
-    );
-    setSelectedIssueId(
-      linkedIssue?.id ??
-        (!hasTimestamp && !linkedAction ? (entry?.issueIds[0] ?? null) : null),
-    );
-    if (linkedIssue) {
-      setSelectedTiers((previous) => new Set([...previous, linkedIssue.tier]));
-    }
-  }, [duration, actionById, session, firstMajorError]);
-  const followedActionId = playing
-    ? activeAction?.id
-    : selected || activeAction?.id;
-  const followedStepId = session.steps.find((step) =>
-    step.actionIds.includes(followedActionId || ""),
-  )?.id;
-  useEffect(() => {
-    if ((!playing && !hasNavigated) || !followedStepId) return;
+  function watchFinding(finding: Issue) {
+    if (switching) return;
+    const stage = steps.find((step) => finding.stepIds.includes(step.id))!;
+    const action =
+      stage.actionIds
+        .map((id) => actionById.get(id)!)
+        .find((action) => finding.actionIds.includes(action.id)) ||
+      stage.actionIds
+        .map((id) => actionById.get(id)!)
+        .find((action) => finding.contextActionIds.includes(action.id));
+    setSelectedIssueId(finding.id);
     setCollapsedSteps((previous) => {
-      if (!previous.has(followedStepId)) return previous;
       const next = new Set(previous);
-      next.delete(followedStepId);
+      next.delete(stage.id);
       return next;
     });
-  }, [followedStepId, followedActionId, playing, hasNavigated]);
-  useEffect(() => {
-    if (manualStepScroll.current && list.current) {
-      const step = list.current.querySelector<HTMLElement>(
-        `[data-step="${manualStepScroll.current}"]`,
+    if (action)
+      seek(
+        action.clipStart ?? Math.max(0, action.start - 3),
+        true,
+        action.clipEnd ?? action.end + 3,
       );
-      manualStepScroll.current = null;
-      if (step)
-        list.current.scrollTo({
-          top:
-            list.current.scrollTop +
-            step.getBoundingClientRect().top -
-            list.current.getBoundingClientRect().top,
-          behavior: "instant",
-        });
-      return;
-    }
-    const id = playing ? activeAction?.id : selected || activeAction?.id;
-    if (
-      !id ||
-      !list.current ||
-      !followedStepId ||
-      collapsedSteps.has(followedStepId)
-    )
-      return;
-    const el = list.current.querySelector<HTMLElement>(`[data-id="${id}"]`);
-    if (el) {
-      const top =
-        el.getBoundingClientRect().top -
-        list.current.getBoundingClientRect().top +
-        list.current.scrollTop;
-      const headerHeight =
-        el
-          .closest(".record-step")
-          ?.querySelector(".record-step-heading")
-          ?.getBoundingClientRect().height || 0;
-      if (
-        playing ||
-        top < list.current.scrollTop + headerHeight ||
-        top + Math.min(el.offsetHeight, 200) >
-          list.current.scrollTop + list.current.clientHeight
-      )
-        list.current.scrollTo({
-          top: Math.max(
-            0,
-            top -
-              Math.max(
-                headerHeight + 16,
-                playing ? list.current.clientHeight * 0.32 : 55,
-              ),
-          ),
-          behavior:
-            playing &&
-            !window.matchMedia("(prefers-reduced-motion: reduce)").matches
-              ? "smooth"
-              : "instant",
-        });
-    }
-  }, [activeAction?.id, selected, playing, followedStepId, collapsedSteps]);
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (
-        (e.target as HTMLElement).closest("button,input,a,summary") ||
-        e.metaKey ||
-        e.ctrlKey ||
-        e.altKey
-      )
-        return;
-      if (e.code === "Space") {
-        e.preventDefault();
-        togglePlay();
-      }
-      if (e.code === "ArrowLeft") {
-        e.preventDefault();
-        setSelected(null);
-        seek((video.current?.currentTime || 0) - 5);
-      }
-      if (e.code === "ArrowRight") {
-        e.preventDefault();
-        setSelected(null);
-        seek((video.current?.currentTime || 0) + 5);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }
+  function jumpToStep(step: RecordStep) {
+    if (step.start === null || switching) return;
+    setSelectedIssueId(null);
+    setCollapsedSteps((previous) => {
+      const next = new Set(previous);
+      next.delete(step.id);
+      return next;
+    });
+    manualStepScroll.current = step.id;
+    seek(step.start, true, step.end);
+  }
   function toggleStep(id: string) {
     manualStepScroll.current = id;
     setCollapsedSteps((previous) => {
@@ -308,135 +141,135 @@ export default function Review({
       return next;
     });
   }
-  function jumpToStep(step: RecordStep) {
-    if (step.start === null) return;
+  function updateTime(next: number) {
+    setTime(next);
+    if (clipEnd.current !== null && next >= clipEnd.current) {
+      video.current?.pause();
+      clipEnd.current = null;
+    }
+  }
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const timestamp = query.get("t");
+    const explicit =
+      timestamp !== null &&
+      timestamp.trim() !== "" &&
+      Number.isFinite(Number(timestamp)) &&
+      Number(timestamp) >= 0;
+    const linkedAction = actionById.get(query.get("action") || "");
+    const linkedFinding = findings.find(
+      (finding) => finding.id === query.get("issue"),
+    );
+    const entry = linkedFinding
+      ? buildTimelineMarkers([linkedFinding], session.reviews, session.steps)[0]
+      : markers.find((marker) => marker.kind === "error");
+    const target = Math.min(
+      session.duration,
+      explicit
+        ? Number(timestamp)
+        : (linkedAction?.start ?? entry?.start ?? steps[0].start!),
+    );
+    video.current?.seek(target);
+    setTime(target);
+    setSelectedIssueId(
+      linkedFinding?.id ??
+        (!explicit && !linkedAction ? (entry?.issueIds[0] ?? null) : null),
+    );
+  }, [session, actionById, findings, markers, steps]);
+
+  // Follow protocol steps, never individual hand movements. Manual expansion wins.
+  useEffect(() => {
+    const container = list.current;
+    if (!container) return;
+    const target = manualStepScroll.current || activeStep?.id;
+    const manual = Boolean(manualStepScroll.current);
+    manualStepScroll.current = null;
+    if (!target) return;
+    const element = container.querySelector<HTMLElement>(
+      `[data-step="${target}"]`,
+    );
+    if (!element) return;
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() =>
+        container.scrollTo({
+          top:
+            container.scrollTop +
+            element.getBoundingClientRect().top -
+            container.getBoundingClientRect().top,
+          behavior:
+            !manual &&
+            playing &&
+            !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? "smooth"
+              : "instant",
+        }),
+      );
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeStep?.id, collapsedSteps]);
+  useEffect(() => {
+    if (!playing || !activeStep) return;
     setCollapsedSteps((previous) => {
+      if (!previous.has(activeStep.id)) return previous;
       const next = new Set(previous);
-      next.delete(step.id);
+      next.delete(activeStep.id);
       return next;
     });
-    setSelected(null);
-    setSelectedIssueId(null);
-    seek(step.start, true);
-  }
-  function renderAction(action: Action) {
-    const supportingIssues = visibleIssues.filter((i) =>
-      i.actionIds.includes(action.id),
-    );
-    const hasError = supportingIssues.some((i) => i.kind === "error");
-    const expanded = selected === action.id;
-    const current = activeAction?.id === action.id;
-    const linked = linkedActions.has(action.id);
-    const contextOnly =
-      linked && highlightedIssue?.contextActionIds.includes(action.id);
-    const actionKind =
-      linked && highlightedIssue
-        ? highlightedIssue.kind
-        : (["error", "risk", "observation"] as const).find((kind) =>
-            supportingIssues.some((issue) => issue.kind === kind),
-          );
-    return (
-      <article
-        key={action.id}
-        data-id={action.id}
-        data-linked={linked ? "true" : "false"}
-        data-context={contextOnly ? "true" : "false"}
-        aria-current={current ? "step" : undefined}
-        className={`log-entry ${actionKind ? `kind-${actionKind}` : ""} ${hasError ? "has-error" : supportingIssues.length ? "has-finding" : ""} ${current ? "current" : ""} ${linked ? "linked" : ""} ${contextOnly ? "context-link" : ""} ${expanded ? "expanded" : ""}`}
-      >
-        {current && (
-          <span
-            className="action-play-progress"
-            aria-hidden="true"
-            style={{
-              height: `${Math.max(0, Math.min(100, ((time - action.start) / (action.end - action.start)) * 100))}%`,
-            }}
-          />
-        )}
-        <button
-          className="log-action"
-          onClick={() => watchAction(action)}
-          aria-label={`${clock(action.start)} ${action.text}`}
-          aria-pressed={focusAction?.id === action.id}
-        >
-          {current && <span className="live-pointer" aria-hidden="true" />}
-          <time>
-            {clock(action.start)}
-            {current && <span className="now-label">Now</span>}
-          </time>
-          <span>
-            <span className="ai-action-text">{action.text}</span>
-          </span>
-        </button>
-      </article>
-    );
-  }
-  function renderIssue(issue: Issue, localActions: Action[]) {
-    const linked = relatedIssues.has(issue.id);
-    return (
-      <article
-        key={issue.id}
-        data-issue={issue.id}
-        data-linked={linked ? "true" : "false"}
-        className={`issue kind-${issue.kind} ${linked ? "linked" : ""}`}
-        onMouseEnter={() => setHoveredIssueId(issue.id)}
-        onMouseLeave={() => setHoveredIssueId(null)}
-      >
-        <button
-          className="issue-trigger"
-          onClick={() => {
-            const action =
-              localActions.find((a) => issue.actionIds.includes(a.id)) ||
-              localActions.find((a) => issue.contextActionIds.includes(a.id));
-            setSelectedIssueId(issue.id);
-            if (action) watchAction(action, true);
-          }}
-          aria-pressed={selectedIssueId === issue.id}
-        >
-          <span className="finding-copy">
-            <span className="issue-kind">
-              <i />
-              {tierLabel[issue.tier]} · {kindLabel[issue.kind]}
-            </span>
-            <strong>{issue.title}</strong>
-            <span className="issue-description">{issue.description}</span>
-          </span>
-        </button>
-      </article>
-    );
-  }
+  }, [activeStep?.id, playing]);
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (
+        switching ||
+        (event.target as HTMLElement).closest("button,input,a,summary") ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      )
+        return;
+      if (event.code === "Space") {
+        event.preventDefault();
+        togglePlay();
+      }
+      if (event.code === "ArrowLeft" || event.code === "ArrowRight") {
+        event.preventDefault();
+        setSelectedIssueId(null);
+        seek(
+          (video.current?.getTime() || 0) +
+            (event.code === "ArrowRight" ? 5 : -5),
+        );
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [switching]);
+
   return (
-    <div className="review-app">
-      <header className="app-header">
-        <div
-          className="tier-filters"
-          role="group"
-          aria-label="Finding importance"
-        >
-          {(["major", "minor"] as const).map((tier) => (
-            <button
-              className={`tier-filter ${tier}-filter`}
-              key={tier}
-              aria-label={`${tierLabel[tier]} findings`}
-              aria-pressed={selectedTiers.has(tier)}
-              onClick={() => {
-                setSelectedTiers((previous) => {
-                  const next = new Set(previous);
-                  if (next.has(tier)) next.delete(tier);
-                  else next.add(tier);
-                  return next;
-                });
-                setSelectedIssueId(null);
-                setHoveredIssueId(null);
-              }}
-            >
-              <strong>{tierCounts[tier]}</strong>
-              <span>
-                {tier} {tierCounts[tier] === 1 ? "error" : "errors"}
-              </span>
-            </button>
-          ))}
+    <div className="review-app analysis-review">
+      <header className="result-header">
+        <div className="result-metrics" aria-label="Reported result">
+          <div>
+            <strong>
+              +{session.analysis.result.closestAboveTargetPercent}%
+            </strong>
+            <span>
+              Closest final concentration
+              <br />
+              above target
+            </span>
+          </div>
+          <div>
+            <strong>
+              {session.analysis.result.replicateVariabilityPercent}%
+            </strong>
+            <span>
+              Reported variability
+              <br />
+              between replicates
+            </span>
+          </div>
         </div>
+        <p>{session.analysis.result.summary}</p>
       </header>
       <main className="workspace">
         <section className="video-column" aria-label="Challenge recording">
@@ -444,9 +277,11 @@ export default function Review({
             <span>Calibration challenge</span>
             <button
               className={`perception-toggle ${mode === "overlay" ? "enabled" : ""}`}
-              onClick={changeMode}
+              disabled={switching}
+              aria-busy={switching}
               aria-pressed={mode === "overlay"}
               aria-label="Toggle perception overlay"
+              onClick={() => void video.current?.switchMode()}
             >
               <Scan size={14} />
               <span>Perception</span>
@@ -456,53 +291,25 @@ export default function Review({
             </button>
           </div>
           <div ref={player} className="player">
-            <div className="video-surface">
-              <video
+            <div className="video-surface" aria-busy={switching}>
+              <SynchronizedVideo
                 ref={video}
-                src={`/media/${slug}/${mode}.mp4`}
-                poster={`/frames/${slug}/poster.jpg`}
-                controlsList="nodownload"
-                playsInline
-                preload="metadata"
+                slug={slug}
                 muted={muted}
+                onTime={updateTime}
+                onPlaying={setPlaying}
+                onLoading={setLoading}
+                onMode={setMode}
+                onSwitching={setSwitching}
+                onError={setError}
                 onClick={togglePlay}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
-                onWaiting={() => setLoading(true)}
-                onCanPlay={() => setLoading(false)}
-                onEnded={() => setPlaying(false)}
-                onError={() => {
-                  setLoading(false);
-                  setError(
-                    "The recording could not load. Reload to renew access.",
-                  );
-                }}
-                onLoadedMetadata={() => {
-                  const v = video.current!;
-                  if (pending.current) {
-                    v.currentTime = pending.current.time;
-                    if (pending.current.playing) void v.play().catch(() => {});
-                    pending.current = null;
-                  }
-                }}
-                onTimeUpdate={() => {
-                  const v = video.current!;
-                  setTime(v.currentTime);
-                  if (
-                    clipEnd.current !== null &&
-                    v.currentTime >= clipEnd.current
-                  ) {
-                    v.pause();
-                    clipEnd.current = null;
-                  }
-                }}
               />
               {activeAction && (
                 <p className="action-caption" aria-label="Current action">
                   {activeAction.text}
                 </p>
               )}
-              {!playing && !loading && (
+              {!playing && !loading && !switching && (
                 <button
                   className="big-play"
                   aria-label="Play recording"
@@ -511,110 +318,88 @@ export default function Review({
                   <Play size={24} fill="currentColor" />
                 </button>
               )}
-              {loading && (
+              {(loading || switching) && (
                 <span className="loading-label" role="status">
-                  Loading…
+                  {switching ? "Switching view…" : "Loading…"}
                 </span>
               )}
             </div>
             <div className="player-controls">
               <div className="step-scrubber" aria-label="Protocol steps">
-                {timedSteps.map((step, index) => {
-                  const end = timedSteps[index + 1]?.start ?? duration;
-                  const width = ((end! - step.start!) / duration) * 100;
-                  const number = steps.findIndex((s) => s.id === step.id) + 1;
-                  return (
-                    <button
-                      key={step.id}
-                      data-scrubber-step={step.id}
-                      style={{
-                        left: `${(step.start! / duration) * 100}%`,
-                        width: `${width}%`,
-                      }}
-                      title={`${step.name} · ${clock(step.start!)}`}
-                      aria-label={`Jump to ${step.name}`}
-                      aria-current={
-                        time >= step.start! && time < end! ? "step" : undefined
-                      }
-                      onClick={() => jumpToStep(step)}
-                    >
-                      {width > 8 ? (
-                        <span className="scrubber-step-name">{step.name}</span>
-                      ) : (
-                        <span>{number}</span>
-                      )}
-                      {visibleIssues
-                        .filter(
-                          (issue) =>
-                            issue.scope === "run-level" &&
-                            issue.stepIds.includes(step.id),
-                        )
-                        .map((issue) => (
-                          <i
-                            className={`chapter-finding kind-${issue.kind}`}
-                            key={issue.id}
-                            data-chapter-issue={issue.id}
-                            title={`${kindLabel[issue.kind]} · ${issue.title}`}
-                            aria-label={`${kindLabel[issue.kind]} affecting this step: ${issue.title}`}
-                          />
-                        ))}
-                    </button>
-                  );
-                })}
+                {steps.map((step) => (
+                  <button
+                    key={step.id}
+                    data-scrubber-step={step.id}
+                    disabled={switching}
+                    style={{
+                      left: `${(step.start! / session.duration) * 100}%`,
+                      width: `${((step.end! - step.start!) / session.duration) * 100}%`,
+                    }}
+                    aria-label={`Jump to ${step.name}`}
+                    aria-current={
+                      activeStep?.id === step.id ? "step" : undefined
+                    }
+                    onClick={() => jumpToStep(step)}
+                  >
+                    <span className="scrubber-step-name">{step.name}</span>
+                    {step.findings
+                      .filter((finding) => finding.scope === "run-level")
+                      .map((finding) => (
+                        <i
+                          key={finding.id}
+                          className={`chapter-finding kind-${finding.kind}`}
+                          data-chapter-issue={finding.id}
+                          title={finding.title}
+                        />
+                      ))}
+                  </button>
+                ))}
               </div>
               <div className="timeline">
                 <input
                   type="range"
                   min="0"
-                  max={duration}
+                  max={session.duration}
                   step="0.1"
                   value={time}
-                  onChange={(e) => {
-                    setSelected(null);
-                    seek(Number(e.target.value));
+                  disabled={switching}
+                  onChange={(event) => {
+                    setSelectedIssueId(null);
+                    seek(Number(event.target.value));
                   }}
                   aria-label="Seek recording"
                   aria-valuetext={clock(time)}
                   style={
                     {
-                      "--progress": `${(time / duration) * 100}%`,
+                      "--progress": `${(time / session.duration) * 100}%`,
                     } as React.CSSProperties
                   }
                 />
                 <div className="timeline-marks">
                   {markers
                     .filter((marker) => marker.end === undefined)
-                    .map((marker) => {
-                      const titles = marker.issueIds
-                        .map(
-                          (id) =>
-                            visibleIssues.find((issue) => issue.id === id)!
-                              .title,
-                        )
-                        .join(" · ");
-                      return (
-                        <button
-                          key={marker.id}
-                          data-marker-kind={marker.kind}
-                          data-marker-issues={marker.issueIds.join(",")}
-                          className={`timeline-marker kind-${marker.kind} ${marker.end !== undefined ? "is-span" : ""} ${highlightedIssue && marker.issueIds.includes(highlightedIssue.id) ? "linked-marker" : ""}`}
-                          style={{
-                            left: `${(marker.start / duration) * 100}%`,
-                            ...(marker.end !== undefined
-                              ? {
-                                  width: `${((marker.end - marker.start) / duration) * 100}%`,
-                                }
-                              : {}),
-                          }}
-                          aria-label={`${kindLabel[marker.kind]} · ${titles} · ${clock(marker.start)}${marker.end !== undefined ? `–${clock(marker.end)}` : ""}`}
-                          title={`${kindLabel[marker.kind]} · ${titles}`}
-                          onClick={() => {
-                            setSelectedIssueId(marker.issueIds[0]);
-                            watchAction(actionById.get(marker.actionId)!, true);
-                          }}
-                        />
-                      );
-                    })}
+                    .map((marker) => (
+                      <button
+                        key={marker.id}
+                        className={`timeline-marker kind-${marker.kind}`}
+                        data-marker-kind={marker.kind}
+                        data-marker-issues={marker.issueIds.join(",")}
+                        style={{
+                          left: `${(marker.start / session.duration) * 100}%`,
+                        }}
+                        disabled={switching}
+                        aria-label={`${kindLabel[marker.kind]} · ${findings.find((finding) => finding.id === marker.issueIds[0])!.title} · ${clock(marker.start)}`}
+                        onClick={() => {
+                          const action = actionById.get(marker.actionId)!;
+                          setSelectedIssueId(marker.issueIds[0]);
+                          seek(
+                            action.clipStart ?? action.start,
+                            true,
+                            action.clipEnd ?? action.end + 3,
+                          );
+                        }}
+                      />
+                    ))}
                 </div>
               </div>
               <div className="control-row">
@@ -622,6 +407,7 @@ export default function Review({
                   <button
                     className="icon-button"
                     aria-label={playing ? "Pause" : "Play"}
+                    disabled={switching}
                     onClick={togglePlay}
                   >
                     {playing ? (
@@ -632,13 +418,14 @@ export default function Review({
                   </button>
                   <span className="time-readout">
                     {clock(time)}
-                    <span> / {clock(duration)}</span>
+                    <span> / {clock(session.duration)}</span>
                   </span>
                 </div>
                 <div>
                   <button
                     className="icon-button"
                     aria-label={muted ? "Unmute" : "Mute"}
+                    disabled={switching}
                     onClick={() => setMuted(!muted)}
                   >
                     {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
@@ -662,17 +449,18 @@ export default function Review({
             </div>
           </div>
           <div className="video-annotation">
-            {overlayVisible && (
-              <div className={`insight-overlay kind-${overlayIssue.kind}`}>
+            {activeFinding && (
+              <div className={`insight-overlay kind-${activeFinding.kind}`}>
                 <div>
                   <span className="insight-indicator" />
                   <span>
-                    {tierLabel[overlayIssue.tier]} ·{" "}
-                    {kindLabel[overlayIssue.kind]} · {overlayIssue.category}
+                    {kindLabel[activeFinding.kind]} · {activeFinding.category}
                   </span>
                 </div>
-                <p>{overlayIssue.title}</p>
-                <p className="insight-description">{overlayIssue.description}</p>
+                <p>{activeFinding.title}</p>
+                <p className="insight-description">
+                  {activeFinding.description}
+                </p>
               </div>
             )}
           </div>
@@ -682,129 +470,166 @@ export default function Review({
             </p>
           )}
         </section>
-        <section className="evidence-pane" aria-label="Actions and findings">
+        <section className="evidence-pane" aria-label="Steps and findings">
           <div className="evidence-heading">
             <div className="log-heading">
               <h2>System of Record</h2>
             </div>
+            <span className="findings-heading">Likely contributors</span>
           </div>
           <div
             ref={list}
             className="evidence-scroll"
             tabIndex={0}
-            aria-label="Action and insight timeline"
+            aria-label="Step and insight timeline"
           >
-            {steps.map((step, index) => (
-              <section
-                className="record-step"
-                key={step.id}
-                data-step={step.id}
-                aria-labelledby={`heading-${step.id}`}
-              >
-                <header
-                  className={`record-step-heading ${step.start !== null && step.end !== null && time >= step.start && time < step.end ? "is-current" : ""}`}
+            {steps.map((step, index) => {
+              const current = activeStep?.id === step.id;
+              const highlighted = highlightedIssue?.stepIds.includes(step.id)
+                ? highlightedIssue
+                : undefined;
+              return (
+                <section
+                  className="record-step"
+                  key={step.id}
+                  data-step={step.id}
+                  aria-labelledby={`heading-${step.id}`}
                 >
-                  <div className="step-heading-row">
-                    <span className="step-number">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <h3 id={`heading-${step.id}`}>
+                  <header
+                    className={`record-step-heading ${current ? "is-current" : ""}`}
+                  >
+                    <div className="step-heading-row">
+                      <span className="step-number">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <h3 id={`heading-${step.id}`}>
+                        <button
+                          className="step-jump"
+                          disabled={switching}
+                          onClick={() => jumpToStep(step)}
+                        >
+                          Preparing {step.name}
+                        </button>
+                      </h3>
+                      <div className="step-counts">
+                        {(["error", "observation", "risk"] as const).map(
+                          (kind) => {
+                            const count = step.findings.filter(
+                              (finding) => finding.kind === kind,
+                            ).length;
+                            return count ? (
+                              <span className={`kind-${kind}`} key={kind}>
+                                {count} {kind}
+                                {count !== 1 ? "s" : ""}
+                              </span>
+                            ) : null;
+                          },
+                        )}
+                      </div>
+                      <time className="step-duration">
+                        {clock(step.end! - step.start!)}
+                      </time>
                       <button
-                        className="step-jump"
-                        disabled={step.start === null}
-                        onClick={() => jumpToStep(step)}
+                        className="step-toggle"
+                        onClick={() => toggleStep(step.id)}
+                        aria-expanded={!collapsedSteps.has(step.id)}
+                        aria-controls={`body-${step.id}`}
+                        aria-label={`${collapsedSteps.has(step.id) ? "Expand" : "Collapse"} ${step.name}`}
                       >
-                        {step.name}
+                        <ChevronDown size={14} />
                       </button>
-                    </h3>
-                    <div className="step-counts">
-                      {step.counts ? (
-                        <>
-                          <span
-                            className={
-                              step.counts.errors ? "kind-error" : "zero"
-                            }
-                          >
-                            {step.counts.errors}{" "}
-                            {step.counts.errors === 1 ? "error" : "errors"}
-                          </span>
-                          <span
-                            className={
-                              step.counts.observations
-                                ? "kind-observation"
-                                : "zero"
-                            }
-                          >
-                            {step.counts.observations}{" "}
-                            {step.counts.observations === 1
-                              ? "observation"
-                              : "observations"}
-                          </span>
-                          <span
-                            className={step.counts.risks ? "kind-risk" : "zero"}
-                          >
-                            {step.counts.risks}{" "}
-                            {step.counts.risks === 1 ? "risk" : "risks"}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="zero">
-                          No recorded actions identified
-                        </span>
-                      )}
                     </div>
-                    <time className="step-duration" title="Recorded duration">
-                      {step.start !== null && step.end !== null
-                        ? clock(step.end - step.start)
-                        : "—"}
-                    </time>
-                    <button
-                      className="step-toggle"
-                      onClick={() => toggleStep(step.id)}
-                      aria-expanded={!collapsedSteps.has(step.id)}
-                      aria-controls={`body-${step.id}`}
-                      aria-label={`${collapsedSteps.has(step.id) ? "Expand" : "Collapse"} ${step.name}`}
-                    >
-                      <ChevronDown size={14} />
-                    </button>
-                  </div>
-                </header>
-                <div
-                  className="record-step-body"
-                  id={`body-${step.id}`}
-                  hidden={collapsedSteps.has(step.id)}
-                >
-                  {step.actionIds.length === 0 && (
-                    <p className="step-empty">
-                      No recorded actions identified.
-                    </p>
-                  )}
-                  {step.sections.map((section) => (
+                  </header>
+                  <div
+                    className="record-step-body"
+                    id={`body-${step.id}`}
+                    hidden={collapsedSteps.has(step.id)}
+                  >
                     <EvidenceSection
-                      key={section.id}
-                      id={section.id}
-                      actions={<>{section.actions.map(renderAction)}</>}
-                      findings={visibleIssues
-                        .filter(
-                          (issue) =>
-                            issue.stepIds.includes(step.id) &&
-                            section.actions.some(
-                              (a) =>
-                                issue.actionIds.includes(a.id) ||
-                                issue.contextActionIds.includes(a.id),
-                            ),
-                        )
-                        .map((issue) => ({
-                          issue,
-                          node: renderIssue(issue, section.actions),
-                        }))}
+                      id={step.id}
+                      actions={
+                        <article
+                          data-id={step.id}
+                          aria-current={current ? "step" : undefined}
+                          className={`log-entry step-record ${current ? "current" : ""} ${highlighted ? `kind-${highlighted.kind} linked` : ""}`}
+                        >
+                          {current && (
+                            <span
+                              className="action-play-progress"
+                              aria-hidden="true"
+                              style={{
+                                height: `${Math.max(0, Math.min(100, ((time - step.start!) / (step.end! - step.start!)) * 100))}%`,
+                              }}
+                            />
+                          )}
+                          <button
+                            className="log-action"
+                            disabled={switching}
+                            onClick={() => jumpToStep(step)}
+                            aria-label={`Play ${step.name}`}
+                          >
+                            {current && (
+                              <span
+                                className="live-pointer"
+                                aria-hidden="true"
+                              />
+                            )}
+                            <time>
+                              {clock(step.start!)}–{clock(step.end!)}
+                              {current && (
+                                <span className="now-label">Now</span>
+                              )}
+                            </time>
+                            <span>
+                              <strong>{step.recordTitle}</strong>
+                              <span className="step-record-text">
+                                {step.record}
+                              </span>
+                            </span>
+                          </button>
+                        </article>
+                      }
+                      findings={step.findings.map((finding) => ({
+                        // The coarse record represents this whole stage; source action IDs remain in the dataset.
+                        issue: {
+                          ...finding,
+                          actionIds: [step.id],
+                          contextActionIds: [],
+                        },
+                        node: (
+                          <article
+                            data-issue={finding.id}
+                            className={`issue kind-${finding.kind}`}
+                            onMouseEnter={() => setHoveredIssueId(finding.id)}
+                            onMouseLeave={() => setHoveredIssueId(null)}
+                          >
+                            <button
+                              className="issue-trigger"
+                              disabled={switching}
+                              aria-pressed={selectedIssueId === finding.id}
+                              onClick={() => watchFinding(finding)}
+                            >
+                              <span className="finding-copy">
+                                <span className="issue-kind">
+                                  <i />
+                                  {kindLabel[finding.kind]}
+                                </span>
+                                <strong>{finding.title}</strong>
+                                <span className="issue-description">
+                                  {finding.description}
+                                </span>
+                              </span>
+                            </button>
+                          </article>
+                        ),
+                      }))}
                       highlightedIssue={hoveredIssueId || selectedIssueId}
-                      focusedAction={focusAction?.id}
+                      focusedAction={current ? step.id : undefined}
                     />
-                  ))}
-                </div>
-              </section>
-            ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         </section>
       </main>

@@ -73,7 +73,21 @@ export type RecordStep = {
   counts: { errors: number; observations: number; risks: number } | null;
 };
 export type Session = {
-  schemaVersion: 4;
+  schemaVersion: 5;
+  analysis: {
+    result: {
+      closestAboveTargetPercent: number;
+      replicateVariabilityPercent: number;
+      summary: string;
+    };
+    stages: {
+      stepId: string;
+      recordTitle: string;
+      record: string;
+      findingIds: string[];
+    }[];
+    findings: Issue[];
+  };
   customer: string;
   operator: string;
   title: string;
@@ -93,4 +107,7 @@ export type Session = {
     humanRows: number;
     errorCategories: number;
   };
+};
+export type ArchivedSession = Omit<Session, "schemaVersion" | "analysis"> & {
+  schemaVersion: 4;
 };

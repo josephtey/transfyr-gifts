@@ -22,3 +22,5 @@ review/
 
 # Contains the customer-specific editorial adjudication.
 scripts/prepare-data.py
+
+src/data/session-archive.json
