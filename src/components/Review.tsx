@@ -9,16 +9,33 @@ import {
   Scan,
   ChevronDown,
 } from "lucide-react";
-import type { Session, Issue, RecordStep } from "../lib/types";
+import type { Session, Issue, RecordStep, CoarseRecord } from "../lib/types";
 import EvidenceSection from "./EvidenceSection";
 import SynchronizedVideo, {
   type SynchronizedVideoHandle,
 } from "./SynchronizedVideo";
+import { leaderboardContext } from "../lib/results";
 import { buildTimelineMarkers } from "../lib/findings";
 
 const clock = (time: number) =>
   `${Math.floor(time / 60)}:${String(Math.floor(time % 60)).padStart(2, "0")}`;
 const kindLabel = { error: "Error", risk: "Risk", observation: "Observation" };
+
+function linkRecords(finding: Issue, records: CoarseRecord[]): Issue {
+  const primary = records
+    .filter((record) =>
+      record.actionIds.some((id) => finding.actionIds.includes(id)),
+    )
+    .map((record) => record.id);
+  const context = records
+    .filter(
+      (record) =>
+        !primary.includes(record.id) &&
+        record.actionIds.some((id) => finding.contextActionIds.includes(id)),
+    )
+    .map((record) => record.id);
+  return { ...finding, actionIds: primary, contextActionIds: context };
+}
 
 export default function Review({
   session,
@@ -43,6 +60,7 @@ export default function Review({
   const [hoveredIssueId, setHoveredIssueId] = useState<string | null>(null);
   const [collapsedSteps, setCollapsedSteps] = useState(() => new Set<string>());
   const findings = session.analysis.findings;
+  const leaderboard = leaderboardContext(session.analysis.result.leaderboard);
   const steps = useMemo(
     () =>
       session.analysis.stages.map((stage) => ({
@@ -53,6 +71,10 @@ export default function Review({
         ),
       })),
     [session, findings],
+  );
+  const records = useMemo(() => steps.flatMap((step) => step.records), [steps]);
+  const activeRecord = records.find(
+    (record) => time >= record.start && time < record.end,
   );
   const markers = useMemo(
     () => buildTimelineMarkers(findings, session.reviews, session.steps),
@@ -66,7 +88,11 @@ export default function Review({
     (action) => time >= action.start && time < action.end,
   );
   const activeStep = steps.find(
-    (step) => time >= step.start! && time < step.end!,
+    (step) =>
+      step.start !== null &&
+      step.end !== null &&
+      time >= step.start &&
+      time < step.end,
   );
   const activeFinding =
     findings.find((finding) => finding.id === selectedIssueId) ||
@@ -178,16 +204,16 @@ export default function Review({
     );
   }, [session, actionById, findings, markers, steps]);
 
-  // Follow protocol steps, never individual hand movements. Manual expansion wins.
+  // Follow grouped operations rather than every hand movement. Manual expansion wins.
   useEffect(() => {
     const container = list.current;
     if (!container) return;
-    const target = manualStepScroll.current || activeStep?.id;
+    const target = manualStepScroll.current || activeRecord?.id;
     const manual = Boolean(manualStepScroll.current);
     manualStepScroll.current = null;
     if (!target) return;
     const element = container.querySelector<HTMLElement>(
-      `[data-step="${target}"]`,
+      manual ? `[data-step="${target}"]` : `[data-id="${target}"]`,
     );
     if (!element) return;
     let frame = requestAnimationFrame(() => {
@@ -196,7 +222,13 @@ export default function Review({
           top:
             container.scrollTop +
             element.getBoundingClientRect().top -
-            container.getBoundingClientRect().top,
+            container.getBoundingClientRect().top -
+            (manual
+              ? 0
+              : (element
+                  .closest(".record-step")
+                  ?.querySelector(".record-step-heading")
+                  ?.getBoundingClientRect().height || 0) + 16),
           behavior:
             !manual &&
             playing &&
@@ -207,7 +239,7 @@ export default function Review({
       );
     });
     return () => cancelAnimationFrame(frame);
-  }, [activeStep?.id, collapsedSteps]);
+  }, [activeRecord?.id, collapsedSteps]);
   useEffect(() => {
     if (!playing || !activeStep) return;
     setCollapsedSteps((previous) => {
@@ -268,6 +300,19 @@ export default function Review({
               between replicates
             </span>
           </div>
+          {leaderboard && (
+            <div
+              className="leaderboard-context"
+              title={leaderboard.explanation}
+            >
+              <strong>≈{leaderboard.ordinal}</strong>
+              <span>
+                Overall percentile
+                <br />
+                Rank {leaderboard.rank} of {leaderboard.totalEntries}
+              </span>
+            </div>
+          )}
         </div>
         <p>{session.analysis.result.summary}</p>
       </header>
@@ -277,7 +322,7 @@ export default function Review({
             <span>Calibration challenge</span>
             <button
               className={`perception-toggle ${mode === "overlay" ? "enabled" : ""}`}
-              disabled={switching}
+              disabled={switching || loading}
               aria-busy={switching}
               aria-pressed={mode === "overlay"}
               aria-label="Toggle perception overlay"
@@ -304,9 +349,9 @@ export default function Review({
                 onError={setError}
                 onClick={togglePlay}
               />
-              {activeAction && (
-                <p className="action-caption" aria-label="Current action">
-                  {activeAction.text}
+              {activeRecord && (
+                <p className="action-caption" aria-label="Current step">
+                  {activeRecord.title}
                 </p>
               )}
               {!playing && !loading && !switching && (
@@ -326,34 +371,40 @@ export default function Review({
             </div>
             <div className="player-controls">
               <div className="step-scrubber" aria-label="Protocol steps">
-                {steps.map((step) => (
-                  <button
-                    key={step.id}
-                    data-scrubber-step={step.id}
-                    disabled={switching}
-                    style={{
-                      left: `${(step.start! / session.duration) * 100}%`,
-                      width: `${((step.end! - step.start!) / session.duration) * 100}%`,
-                    }}
-                    aria-label={`Jump to ${step.name}`}
-                    aria-current={
-                      activeStep?.id === step.id ? "step" : undefined
-                    }
-                    onClick={() => jumpToStep(step)}
-                  >
-                    <span className="scrubber-step-name">{step.name}</span>
-                    {step.findings
-                      .filter((finding) => finding.scope === "run-level")
-                      .map((finding) => (
-                        <i
-                          key={finding.id}
-                          className={`chapter-finding kind-${finding.kind}`}
-                          data-chapter-issue={finding.id}
-                          title={finding.title}
-                        />
-                      ))}
-                  </button>
-                ))}
+                {steps
+                  .filter((step) => step.start !== null)
+                  .map((step) => (
+                    <button
+                      key={step.id}
+                      data-scrubber-step={step.id}
+                      disabled={switching}
+                      style={{
+                        left: `${(step.start! / session.duration) * 100}%`,
+                        width: `${((step.end! - step.start!) / session.duration) * 100}%`,
+                      }}
+                      aria-label={`Jump to ${step.name}`}
+                      aria-current={
+                        activeStep?.id === step.id ? "step" : undefined
+                      }
+                      onClick={() => jumpToStep(step)}
+                    >
+                      <span className="scrubber-step-name">
+                        {(step.end! - step.start!) / session.duration > 0.08
+                          ? step.name
+                          : steps.indexOf(step) + 1}
+                      </span>
+                      {step.findings
+                        .filter((finding) => finding.scope === "run-level")
+                        .map((finding) => (
+                          <i
+                            key={finding.id}
+                            className={`chapter-finding kind-${finding.kind}`}
+                            data-chapter-issue={finding.id}
+                            title={finding.title}
+                          />
+                        ))}
+                    </button>
+                  ))}
               </div>
               <div className="timeline">
                 <input
@@ -485,9 +536,6 @@ export default function Review({
           >
             {steps.map((step, index) => {
               const current = activeStep?.id === step.id;
-              const highlighted = highlightedIssue?.stepIds.includes(step.id)
-                ? highlightedIssue
-                : undefined;
               return (
                 <section
                   className="record-step"
@@ -505,10 +553,10 @@ export default function Review({
                       <h3 id={`heading-${step.id}`}>
                         <button
                           className="step-jump"
-                          disabled={switching}
+                          disabled={switching || step.start === null}
                           onClick={() => jumpToStep(step)}
                         >
-                          Preparing {step.name}
+                          {step.name}
                         </button>
                       </h3>
                       <div className="step-counts">
@@ -527,7 +575,9 @@ export default function Review({
                         )}
                       </div>
                       <time className="step-duration">
-                        {clock(step.end! - step.start!)}
+                        {step.start !== null && step.end !== null
+                          ? clock(step.end - step.start)
+                          : "—"}
                       </time>
                       <button
                         className="step-toggle"
@@ -545,57 +595,92 @@ export default function Review({
                     id={`body-${step.id}`}
                     hidden={collapsedSteps.has(step.id)}
                   >
+                    {step.records.length === 0 && (
+                      <p className="step-empty">
+                        No blank preparation identified in the recording.
+                      </p>
+                    )}
                     <EvidenceSection
                       id={step.id}
                       actions={
-                        <article
-                          data-id={step.id}
-                          aria-current={current ? "step" : undefined}
-                          className={`log-entry step-record ${current ? "current" : ""} ${highlighted ? `kind-${highlighted.kind} linked` : ""}`}
-                        >
-                          {current && (
-                            <span
-                              className="action-play-progress"
-                              aria-hidden="true"
-                              style={{
-                                height: `${Math.max(0, Math.min(100, ((time - step.start!) / (step.end! - step.start!)) * 100))}%`,
-                              }}
-                            />
-                          )}
-                          <button
-                            className="log-action"
-                            disabled={switching}
-                            onClick={() => jumpToStep(step)}
-                            aria-label={`Play ${step.name}`}
-                          >
-                            {current && (
-                              <span
-                                className="live-pointer"
-                                aria-hidden="true"
-                              />
-                            )}
-                            <time>
-                              {clock(step.start!)}–{clock(step.end!)}
-                              {current && (
-                                <span className="now-label">Now</span>
-                              )}
-                            </time>
-                            <span>
-                              <strong>{step.recordTitle}</strong>
-                              <span className="step-record-text">
-                                {step.record}
-                              </span>
-                            </span>
-                          </button>
-                        </article>
+                        <>
+                          {step.records.map((record) => {
+                            const currentRecord =
+                              activeRecord?.id === record.id;
+                            const linked =
+                              highlightedIssue &&
+                              [
+                                ...highlightedIssue.actionIds,
+                                ...highlightedIssue.contextActionIds,
+                              ].some((id) => record.actionIds.includes(id));
+                            const kind = linked
+                              ? highlightedIssue.kind
+                              : (
+                                  ["error", "risk", "observation"] as const
+                                ).find((kind) =>
+                                  step.findings.some(
+                                    (finding) =>
+                                      finding.kind === kind &&
+                                      finding.actionIds.some((id) =>
+                                        record.actionIds.includes(id),
+                                      ),
+                                  ),
+                                );
+                            return (
+                              <article
+                                key={record.id}
+                                data-id={record.id}
+                                data-linked={Boolean(linked)}
+                                aria-current={
+                                  currentRecord ? "step" : undefined
+                                }
+                                className={`log-entry step-record ${currentRecord ? "current" : ""} ${kind ? `kind-${kind}` : ""} ${linked ? "linked" : ""}`}
+                              >
+                                {currentRecord && (
+                                  <span
+                                    className="action-play-progress"
+                                    aria-hidden="true"
+                                    style={{
+                                      height: `${Math.max(0, Math.min(100, ((time - record.start) / (record.end - record.start)) * 100))}%`,
+                                    }}
+                                  />
+                                )}
+                                <button
+                                  className="log-action"
+                                  disabled={switching}
+                                  onClick={() => {
+                                    setSelectedIssueId(null);
+                                    seek(record.start, true, record.end);
+                                  }}
+                                  aria-label={`Play ${record.title}`}
+                                >
+                                  {currentRecord && (
+                                    <span
+                                      className="live-pointer"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                  <time>
+                                    {clock(record.start)}–{clock(record.end)}
+                                    {currentRecord && (
+                                      <span className="now-label">Now</span>
+                                    )}
+                                  </time>
+                                  <span>
+                                    <strong>{record.title}</strong>
+                                    <span className="step-record-text">
+                                      {record.text}
+                                    </span>
+                                  </span>
+                                </button>
+                              </article>
+                            );
+                          })}
+                        </>
                       }
                       findings={step.findings.map((finding) => ({
-                        // The coarse record represents this whole stage; source action IDs remain in the dataset.
-                        issue: {
-                          ...finding,
-                          actionIds: [step.id],
-                          contextActionIds: [],
-                        },
+                        // Map each source action to its grouped operation, preserving evidence/context distinctions.
+                        issue: linkRecords(finding, step.records),
                         node: (
                           <article
                             data-issue={finding.id}
@@ -624,7 +709,7 @@ export default function Review({
                         ),
                       }))}
                       highlightedIssue={hoveredIssueId || selectedIssueId}
-                      focusedAction={current ? step.id : undefined}
+                      focusedAction={activeRecord?.id}
                     />
                   </div>
                 </section>

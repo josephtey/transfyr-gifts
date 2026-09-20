@@ -317,9 +317,9 @@ test("timeline clusters retain every selected category's notes and omissions rem
   }
 });
 
-test("the outcome explanation has three coarse records and only traceable, relevant contributors", () => {
-  assert.equal(session.schemaVersion, 5);
-  assert.equal(session.analysis.stages.length, 3);
+test("grouped records cover every source action and retain only explanation-relevant findings", () => {
+  assert.equal(session.schemaVersion, 6);
+  assert.equal(session.analysis.stages.length, session.steps.length);
   assert.equal(session.analysis.findings.length, 8);
   const included = new Set(
     session.analysis.findings.map((finding) => finding.id),
@@ -330,13 +330,31 @@ test("the outcome explanation has three coarse records and only traceable, relev
   );
   for (const stage of session.analysis.stages) {
     assert.ok(session.steps.some((step) => step.id === stage.stepId));
-    assert.ok(stage.record && stage.recordTitle);
+    const step = session.steps.find((step) => step.id === stage.stepId);
+    assert.deepEqual(
+      stage.records.flatMap((record) => record.actionIds),
+      step.actionIds,
+    );
+    for (const record of stage.records) {
+      assert.ok(record.title && record.text && record.actionIds.length);
+      assert.equal(record.start, actions.get(record.actionIds[0]).start);
+      assert.equal(record.end, actions.get(record.actionIds.at(-1)).end);
+    }
     for (const id of stage.findingIds)
       assert.deepEqual(
         session.analysis.findings.find((finding) => finding.id === id).stepIds,
         [stage.stepId],
       );
   }
+  const grouped = session.analysis.stages.flatMap((stage) => stage.records);
+  assert.equal(
+    new Set(grouped.map((record) => record.id)).size,
+    grouped.length,
+  );
+  assert.deepEqual(
+    grouped.flatMap((record) => record.actionIds),
+    session.actions.map((action) => action.id),
+  );
   for (const finding of session.analysis.findings) {
     assert.ok(finding.reviewIds.length || finding.summaryIds.length);
     for (const id of finding.reviewIds) assert.ok(reviews.has(id));
@@ -364,4 +382,37 @@ test("the outcome explanation has three coarse records and only traceable, relev
       .description,
     /If .*fully dispensed/,
   );
+});
+
+test("leaderboard context uses overall rank with higher performance percentiles meaning better placement", async () => {
+  const { leaderboardContext } = await import("../src/lib/results.ts");
+  assert.equal(
+    leaderboardContext({ rank: 1, totalEntries: 100 }).percentile,
+    99,
+  );
+  assert.equal(
+    leaderboardContext({ rank: 100, totalEntries: 100 }).percentile,
+    0,
+  );
+  assert.equal(
+    leaderboardContext({ rank: 80, totalEntries: 100 }).ordinal,
+    "20th",
+  );
+  assert.equal(
+    leaderboardContext({ rank: 19, totalEntries: 100 }).ordinal,
+    "81st",
+  );
+  assert.equal(
+    leaderboardContext({ rank: 89, totalEntries: 100 }).ordinal,
+    "11th",
+  );
+  for (const input of [
+    undefined,
+    { rank: 0, totalEntries: 10 },
+    { rank: 11, totalEntries: 10 },
+    { rank: 1, totalEntries: 0 },
+  ])
+    assert.equal(leaderboardContext(input), null);
+  const { rank, totalEntries } = session.analysis.result.leaderboard;
+  assert.ok(rank >= 1 && rank <= totalEntries);
 });

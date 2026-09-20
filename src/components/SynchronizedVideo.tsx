@@ -247,7 +247,23 @@ export default forwardRef<
             if (sourceMode === active.current) props.onLoading(true);
           }}
           onCanPlay={() => {
+            if (
+              sourceMode === active.current &&
+              !switching.current &&
+              !videos.current[sourceMode]?.seeking
+            )
+              props.onLoading(false);
+          }}
+          onSeeking={() => {
             if (sourceMode === active.current && !switching.current)
+              props.onLoading(true);
+          }}
+          onSeeked={(event) => {
+            if (
+              sourceMode === active.current &&
+              !switching.current &&
+              event.currentTarget.readyState >= 2
+            )
               props.onLoading(false);
           }}
           onEnded={() => {

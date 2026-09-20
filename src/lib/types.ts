@@ -72,18 +72,26 @@ export type RecordStep = {
   segments: RecordSegment[];
   counts: { errors: number; observations: number; risks: number } | null;
 };
+export type CoarseRecord = {
+  id: string;
+  title: string;
+  text: string;
+  start: number;
+  end: number;
+  actionIds: string[];
+};
 export type Session = {
-  schemaVersion: 5;
+  schemaVersion: 6;
   analysis: {
     result: {
       closestAboveTargetPercent: number;
       replicateVariabilityPercent: number;
       summary: string;
+      leaderboard?: { rank: number; totalEntries: number };
     };
     stages: {
       stepId: string;
-      recordTitle: string;
-      record: string;
+      records: CoarseRecord[];
       findingIds: string[];
     }[];
     findings: Issue[];

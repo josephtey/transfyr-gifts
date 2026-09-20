@@ -2,10 +2,12 @@ import { test, expect } from "@playwright/test";
 import { loadEnvFile } from "node:process";
 import { readFileSync } from "node:fs";
 import type { Session } from "../src/lib/types";
+import { leaderboardContext } from "../src/lib/results";
 import { buildTimelineMarkers } from "../src/lib/findings";
 loadEnvFile(".env.local");
 const base = process.env.TEST_BASE_URL || "http://localhost:3000";
 const data: Session = JSON.parse(readFileSync("src/data/session.json", "utf8"));
+const records = data.analysis.stages.flatMap((stage) => stage.records);
 const activeVideo = (page: import("@playwright/test").Page) =>
   page.locator('video[data-active="true"]');
 async function login(
@@ -20,11 +22,32 @@ async function login(
   await expect(
     page.getByRole("heading", { name: "System of Record" }),
   ).toBeVisible();
+  const timestamp = new URL(path, base).searchParams.get("t");
+  const target =
+    timestamp !== null
+      ? Number(timestamp)
+      : buildTimelineMarkers(
+          data.analysis.findings,
+          data.reviews,
+          data.steps,
+        ).find((marker) => marker.kind === "error")!.start;
+  await expect
+    .poll(() =>
+      activeVideo(page).evaluate(
+        (video: HTMLVideoElement) => video.currentTime,
+      ),
+    )
+    .toBeCloseTo(target, 0);
   await expect
     .poll(() =>
       activeVideo(page).evaluate((video: HTMLVideoElement) => video.readyState),
     )
     .toBeGreaterThanOrEqual(2);
+  await expect
+    .poll(() =>
+      activeVideo(page).evaluate((video: HTMLVideoElement) => video.seeking),
+    )
+    .toBe(false);
 }
 
 test("password protects the review and media; explicit timestamps survive login", async ({
@@ -92,9 +115,20 @@ test("the result explanation selects all visible findings and replaces the fine-
   await expect(
     page.getByRole("button", { name: /Major findings|Minor findings/ }),
   ).toHaveCount(0);
-  await expect(page.locator(".step-record")).toHaveCount(3);
+  await expect(page.locator(".step-record")).toHaveCount(records.length);
+  const leaderboard = leaderboardContext(data.analysis.result.leaderboard)!;
+  await expect(page.locator(".leaderboard-context")).toContainText(
+    `≈${leaderboard.ordinal}`,
+  );
+  await expect(page.locator(".leaderboard-context")).toContainText(
+    `Rank ${leaderboard.rank} of ${leaderboard.totalEntries}`,
+  );
+  await expect(page.locator(".leaderboard-context")).toHaveAttribute(
+    "title",
+    leaderboard.explanation,
+  );
   await expect(page.locator(".step-record-text")).toHaveText(
-    data.analysis.stages.map((stage) => stage.record),
+    records.map((record) => record.text),
   );
   await expect(page.locator(".ai-action-text")).toHaveCount(0);
   await expect(page.locator(".issue-trigger strong")).toHaveText(
@@ -140,9 +174,22 @@ test("each finding is connected to its coarse step and plays its evidence with f
   await login(page);
   for (const stage of data.analysis.stages) {
     const step = page.locator(`[data-step="${stage.stepId}"]`);
-    await expect(step.locator(".evidence-link")).toHaveCount(
-      stage.findingIds.length,
-    );
+    const linkedCount = stage.findingIds.reduce((count, id) => {
+      const finding = data.analysis.findings.find(
+        (finding) => finding.id === id,
+      )!;
+      return (
+        count +
+        stage.records.filter((record) =>
+          record.actionIds.some((action) =>
+            [...finding.actionIds, ...finding.contextActionIds].includes(
+              action,
+            ),
+          ),
+        ).length
+      );
+    }, 0);
+    await expect(step.locator(".evidence-link")).toHaveCount(linkedCount);
     for (const id of stage.findingIds) {
       const finding = data.analysis.findings.find(
         (finding) => finding.id === id,
@@ -176,13 +223,13 @@ test("each finding is connected to its coarse step and plays its evidence with f
         colors[finding.kind],
       );
       await expect(
-        step.locator(`[data-issue-link="${id}"] .connection-stroke`),
+        step.locator(`[data-issue-link="${id}"] .connection-stroke`).first(),
       ).toHaveCSS("stroke", colors[finding.kind]);
     }
   }
 });
 
-test("all three steps start open, seek from both controls and expand without changing playback time", async ({
+test("all protocol steps start open, seek from both controls and expand without changing playback time", async ({
   page,
 }) => {
   await login(page);
@@ -200,7 +247,7 @@ test("all three steps start open, seek from both controls and expand without cha
     await activeVideo(page).evaluate((v: HTMLVideoElement) => v.paused),
   ).toBe(true);
   await expect(page.locator('.step-toggle[aria-expanded="true"]')).toHaveCount(
-    3,
+    data.analysis.stages.length,
   );
   await page
     .getByRole("button", { name: "Collapse Calibration 3", exact: true })
@@ -224,6 +271,15 @@ test("all three steps start open, seek from both controls and expand without cha
   ).toBeCloseTo(first.start, 0);
   for (const stage of data.analysis.stages) {
     const step = data.steps.find((step) => step.id === stage.stepId)!;
+    if (step.start === null) {
+      await expect(
+        page.locator(`[data-step="${step.id}"] .step-jump`),
+      ).toBeDisabled();
+      await expect(
+        page.locator(`[data-scrubber-step="${step.id}"]`),
+      ).toHaveCount(0);
+      continue;
+    }
     await page
       .getByRole("button", { name: `Jump to ${step.name}`, exact: true })
       .click();
@@ -232,13 +288,15 @@ test("all three steps start open, seek from both controls and expand without cha
         activeVideo(page).evaluate((v: HTMLVideoElement) => v.currentTime),
       )
       .toBeGreaterThanOrEqual(step.start!);
-    await expect(page.locator(`[data-id="${step.id}"]`)).toHaveAttribute(
-      "aria-current",
-      "step",
-    );
+    await expect(
+      page.locator(`[data-id="${stage.records[0].id}"]`),
+    ).toHaveAttribute("aria-current", "step");
     await page.getByRole("button", { name: "Pause", exact: true }).click();
     await page
-      .getByRole("button", { name: `Play ${step.name}`, exact: true })
+      .getByRole("button", {
+        name: `Play ${stage.records[0].title}`,
+        exact: true,
+      })
       .click();
     await expect
       .poll(() =>
@@ -344,13 +402,11 @@ test("perception keeps playing and retains clip boundaries", async ({
     .toBe(true);
 });
 
-test("the current exact AI caption hides in gaps and playback follows protocol steps", async ({
+test("the grouped step title replaces atomic captions and playback follows grouped operations", async ({
   page,
 }) => {
   await login(page, "/genentech?t=0");
-  await expect(page.locator(".action-caption")).toHaveText(
-    data.actions[0].text,
-  );
+  await expect(page.locator(".action-caption")).toHaveText(records[0].title);
   const caption = await page.locator(".action-caption").boundingBox();
   const surface = await page.locator(".video-surface").boundingBox();
   expect(caption!.y - surface!.y).toBe(12);
@@ -362,25 +418,35 @@ test("the current exact AI caption hides in gaps and playback follows protocol s
     v.currentTime = 68;
   });
   await expect(page.locator(".action-caption")).toHaveText(
-    data.actions[2].text,
+    records.find((record) => 68 >= record.start && 68 < record.end)!.title,
   );
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await activeVideo(page).evaluate((v: HTMLVideoElement) => {
     v.currentTime = 705;
   });
-  await expect(page.locator('[data-id="calibration-3"]')).toHaveAttribute(
+  const current = records.find(
+    (record) => 705 >= record.start && 705 < record.end,
+  )!;
+  await expect(page.locator(".action-caption")).toHaveText(current.title);
+  await expect(page.locator(`[data-id="${current.id}"]`)).toHaveAttribute(
     "aria-current",
     "step",
   );
   await expect(
-    page.locator('[data-id="calibration-3"] .live-pointer'),
+    page.locator(`[data-id="${current.id}"] .live-pointer`),
   ).toBeVisible();
   await expect
     .poll(() =>
-      page.locator('[data-step="calibration-3"]').evaluate((element) => {
+      page.locator(`[data-id="${current.id}"]`).evaluate((element) => {
+        const scroll = element.closest(".evidence-scroll")!;
+        const header = element
+          .closest(".record-step")!
+          .querySelector(".record-step-heading")!;
         return Math.abs(
           element.getBoundingClientRect().top -
-            element.closest(".evidence-scroll")!.getBoundingClientRect().top,
+            scroll.getBoundingClientRect().top -
+            header.getBoundingClientRect().height -
+            16,
         );
       }),
     )
