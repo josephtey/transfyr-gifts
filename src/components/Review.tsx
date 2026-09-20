@@ -62,7 +62,7 @@ export default function Review({
   const [collapsedSteps, setCollapsedSteps] = useState(() => new Set<string>());
   const findings = session.analysis.findings;
   const leaderboard = leaderboardContext(session.analysis.result.leaderboard);
-  const metricRanks = session.analysis.result.metricRanks;
+  const metricComparisons = session.analysis.result.metricComparisons;
   const steps = useMemo(
     () =>
       session.analysis.stages.map((stage) => ({
@@ -282,7 +282,7 @@ export default function Review({
     <div className="review-app analysis-review">
       <header className="result-header">
         <div
-          className={`result-metrics ${metricRanks ? "has-percentile-scales" : ""}`}
+          className={`result-metrics ${metricComparisons ? "has-percentile-scales" : ""}`}
           aria-label="Reported result"
         >
           <div>
@@ -294,10 +294,10 @@ export default function Review({
               <br />
               above target
             </span>
-            {metricRanks && (
+            {metricComparisons && (
               <PercentileScale
                 label="Concentration accuracy"
-                ranking={metricRanks.accuracy}
+                comparison={metricComparisons.accuracy}
               />
             )}
           </div>
@@ -310,14 +310,21 @@ export default function Review({
               <br />
               between replicates
             </span>
-            {metricRanks && (
+            {metricComparisons && (
               <PercentileScale
                 label="Replicate variability"
-                ranking={metricRanks.variability}
+                comparison={metricComparisons.variability}
               />
             )}
           </div>
-          {!metricRanks && leaderboard && (
+          {metricComparisons &&
+            ("estimate" in metricComparisons.accuracy ||
+              "estimate" in metricComparisons.variability) && (
+              <p className="percentile-source">
+                Percentiles estimated from the leaderboard image.
+              </p>
+            )}
+          {!metricComparisons && leaderboard && (
             <div
               className="leaderboard-context"
               title={leaderboard.explanation}

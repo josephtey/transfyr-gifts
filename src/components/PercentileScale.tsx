@@ -1,21 +1,21 @@
-import { leaderboardContext } from "../lib/results";
+import { metricPercentileContext, type MetricComparison } from "../lib/results";
 
 /** Metric ranks are independent; an overall score rank cannot stand in for them. */
 export default function PercentileScale({
   label,
-  ranking,
+  comparison,
 }: {
   label: string;
-  ranking: { rank: number; totalEntries: number };
+  comparison: MetricComparison;
 }) {
-  const context = leaderboardContext(ranking);
+  const context = metricPercentileContext(comparison);
   if (!context) return null;
   return (
     <div
       className="percentile-scale"
       role="img"
-      aria-label={`${label}: approximately ${context.ordinal} percentile, rank ${context.rank} of ${context.totalEntries}. Higher percentiles are better.`}
-      title={`${label} rank: ${context.rank} of ${context.totalEntries}. Higher percentiles are better.`}
+      aria-label={`${label}: approximately ${context.ordinal} percentile, ${context.detail} Higher percentiles are better.`}
+      title={`${label}: ${context.detail} Higher percentiles are better.`}
     >
       <div className="percentile-scale-label">
         <b>≈{context.ordinal} percentile</b>

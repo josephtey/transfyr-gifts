@@ -2339,7 +2339,7 @@ time,
   min-height: 100%;
 }
 
-/* Independent cohort ranks; these scales never reuse the overall rank. */
+/* Independent metric comparisons; estimates stay explicitly labeled. */
 .result-metrics.has-percentile-scales {
   width: min(57%, 760px);
   display: grid;
@@ -2422,5 +2422,18 @@ time,
   .result-metrics .percentile-scale-label span {
     display: block;
     margin-top: 5px;
+  }
+}
+
+.result-metrics .percentile-source {
+  grid-column: 1 / -1;
+  margin: -22px 0 0;
+  color: #869088;
+  font-size: 10px;
+  line-height: 1.4;
+}
+@media (max-width: 1200px) {
+  .result-metrics .percentile-source {
+    margin-top: -10px;
   }
 }

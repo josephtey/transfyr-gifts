@@ -318,7 +318,7 @@ test("timeline clusters retain every selected category's notes and omissions rem
 });
 
 test("grouped records cover every source action and retain only explanation-relevant findings", () => {
-  assert.equal(session.schemaVersion, 6);
+  assert.equal(session.schemaVersion, 7);
   assert.equal(session.analysis.stages.length, session.steps.length);
   assert.equal(session.analysis.findings.length, 8);
   const included = new Set(
@@ -415,4 +415,30 @@ test("leaderboard context uses overall rank with higher performance percentiles 
     assert.equal(leaderboardContext(input), null);
   const { rank, totalEntries } = session.analysis.result.leaderboard;
   assert.ok(rank >= 1 && rank <= totalEntries);
+});
+
+test("image-based metric estimates are labeled and never manufacture exact ranks", async () => {
+  const { metricPercentileContext } = await import("../src/lib/results.ts");
+  const estimated = metricPercentileContext({
+    estimate: 35,
+    totalEntries: 100,
+  });
+  assert.equal(estimated.percentile, 35);
+  assert.equal(estimated.estimated, true);
+  assert.match(estimated.detail, /Estimated from .* image/);
+  assert.equal("rank" in estimated, false);
+  const measured = metricPercentileContext({ rank: 25, totalEntries: 100 });
+  assert.equal(measured.percentile, 75);
+  assert.equal(measured.estimated, false);
+  for (const value of [-1, 101, NaN, Infinity])
+    assert.equal(
+      metricPercentileContext({ estimate: value, totalEntries: 100 }),
+      null,
+    );
+  for (const comparison of Object.values(
+    session.analysis.result.metricComparisons,
+  )) {
+    const context = metricPercentileContext(comparison);
+    assert.ok(context && context.percentile >= 0 && context.percentile <= 100);
+  }
 });

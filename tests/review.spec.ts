@@ -2,7 +2,10 @@ import { test, expect } from "@playwright/test";
 import { loadEnvFile } from "node:process";
 import { readFileSync } from "node:fs";
 import type { Session } from "../src/lib/types";
-import { leaderboardContext } from "../src/lib/results";
+import {
+  leaderboardContext,
+  metricPercentileContext,
+} from "../src/lib/results";
 import { buildTimelineMarkers } from "../src/lib/findings";
 loadEnvFile(".env.local");
 const base = process.env.TEST_BASE_URL || "http://localhost:3000";
@@ -116,23 +119,42 @@ test("the result explanation selects all visible findings and replaces the fine-
     page.getByRole("button", { name: /Major findings|Minor findings/ }),
   ).toHaveCount(0);
   await expect(page.locator(".step-record")).toHaveCount(records.length);
-  if (data.analysis.result.metricRanks) {
-    for (const [metric, rank] of Object.entries(
-      data.analysis.result.metricRanks,
+  if (data.analysis.result.metricComparisons) {
+    for (const [metric, comparison] of Object.entries(
+      data.analysis.result.metricComparisons,
     )) {
-      const context = leaderboardContext(rank)!;
+      const context = metricPercentileContext(comparison)!;
       const label =
         metric === "accuracy"
           ? "Concentration accuracy"
           : "Replicate variability";
       await expect(
         page.getByRole("img", {
-          name: `${label}: approximately ${context.ordinal} percentile, rank ${context.rank} of ${context.totalEntries}. Higher percentiles are better.`,
+          name: `${label}: approximately ${context.ordinal} percentile, ${context.detail} Higher percentiles are better.`,
           exact: true,
         }),
       ).toBeVisible();
     }
     await expect(page.locator(".percentile-scale")).toHaveCount(2);
+    const comparisons = Object.values(data.analysis.result.metricComparisons);
+    if (comparisons.some((comparison) => "estimate" in comparison)) {
+      await expect(page.locator(".percentile-source")).toHaveText(
+        "Percentiles estimated from the leaderboard image.",
+      );
+      for (const scale of await page.locator(".percentile-scale").all()) {
+        await expect(scale).not.toHaveAttribute("aria-label", /rank \d/);
+      }
+    }
+    const positions = await page
+      .locator(".percentile-position")
+      .evaluateAll((elements) =>
+        elements.map((element) => (element as HTMLElement).style.left),
+      );
+    expect(positions).toEqual(
+      comparisons.map(
+        (comparison) => `${metricPercentileContext(comparison)!.percentile}%`,
+      ),
+    );
     await expect(page.locator(".leaderboard-context")).toHaveCount(0);
   } else {
     const leaderboard = leaderboardContext(data.analysis.result.leaderboard)!;

@@ -1,3 +1,5 @@
+import type { MetricComparison } from "./results";
+
 export type ReviewRelationship =
   "confirms" | "detail" | "correction" | "missing" | "context" | "ambiguous";
 export type HumanReview = {
@@ -81,16 +83,16 @@ export type CoarseRecord = {
   actionIds: string[];
 };
 export type Session = {
-  schemaVersion: 6;
+  schemaVersion: 7;
   analysis: {
     result: {
       closestAboveTargetPercent: number;
       replicateVariabilityPercent: number;
       summary: string;
       leaderboard?: { rank: number; totalEntries: number };
-      metricRanks?: {
-        accuracy: { rank: number; totalEntries: number };
-        variability: { rank: number; totalEntries: number };
+      metricComparisons?: {
+        accuracy: MetricComparison;
+        variability: MetricComparison;
       };
     };
     stages: {

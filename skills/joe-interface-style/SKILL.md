@@ -13,7 +13,7 @@ These preferences come from Joe’s hands-on revisions to a private video-review
 - Put the primary content first. Prefer a focused workspace to a dashboard of widgets. Start with what the person came to inspect and the explanation it supports.
 - Remove ornamental branding, welcome copy, instructions that repeat the obvious, audit/editing history and labels explaining how the UI works. Do not narrate “linked actions” when a line already shows the relationship.
 - Give each control a job. Avoid separate “play action”, “view linked actions” or “show details” buttons when the row or finding can do that directly. Use real accessible buttons with clear names under the clean surface.
-- Keep results prominent when they frame the work, with concise metric labels and honest denominators. Avoid filling space with extra counters. For comparing result metrics against a cohort, prefer a compact horizontal percentile scale for each metric; verify separate ranks rather than reusing an overall score rank.
+- Keep results prominent when they frame the work, with concise metric labels and honest denominators. Avoid filling space with extra counters. For comparing result metrics against a cohort, prefer a compact horizontal percentile scale for each metric; use independent comparisons rather than reusing an overall score rank. If Joe accepts a visual estimate, round and label it instead of presenting an exact rank.
 
 ## Structure follows meaning
 
