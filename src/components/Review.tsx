@@ -10,6 +10,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import type { Session, Issue, RecordStep, CoarseRecord } from "../lib/types";
+import PercentileScale from "./PercentileScale";
 import EvidenceSection from "./EvidenceSection";
 import SynchronizedVideo, {
   type SynchronizedVideoHandle,
@@ -61,6 +62,7 @@ export default function Review({
   const [collapsedSteps, setCollapsedSteps] = useState(() => new Set<string>());
   const findings = session.analysis.findings;
   const leaderboard = leaderboardContext(session.analysis.result.leaderboard);
+  const metricRanks = session.analysis.result.metricRanks;
   const steps = useMemo(
     () =>
       session.analysis.stages.map((stage) => ({
@@ -279,7 +281,10 @@ export default function Review({
   return (
     <div className="review-app analysis-review">
       <header className="result-header">
-        <div className="result-metrics" aria-label="Reported result">
+        <div
+          className={`result-metrics ${metricRanks ? "has-percentile-scales" : ""}`}
+          aria-label="Reported result"
+        >
           <div>
             <strong>
               +{session.analysis.result.closestAboveTargetPercent}%
@@ -289,6 +294,12 @@ export default function Review({
               <br />
               above target
             </span>
+            {metricRanks && (
+              <PercentileScale
+                label="Concentration accuracy"
+                ranking={metricRanks.accuracy}
+              />
+            )}
           </div>
           <div>
             <strong>
@@ -299,8 +310,14 @@ export default function Review({
               <br />
               between replicates
             </span>
+            {metricRanks && (
+              <PercentileScale
+                label="Replicate variability"
+                ranking={metricRanks.variability}
+              />
+            )}
           </div>
-          {leaderboard && (
+          {!metricRanks && leaderboard && (
             <div
               className="leaderboard-context"
               title={leaderboard.explanation}

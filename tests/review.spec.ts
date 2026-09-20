@@ -116,17 +116,38 @@ test("the result explanation selects all visible findings and replaces the fine-
     page.getByRole("button", { name: /Major findings|Minor findings/ }),
   ).toHaveCount(0);
   await expect(page.locator(".step-record")).toHaveCount(records.length);
-  const leaderboard = leaderboardContext(data.analysis.result.leaderboard)!;
-  await expect(page.locator(".leaderboard-context")).toContainText(
-    `≈${leaderboard.ordinal}`,
-  );
-  await expect(page.locator(".leaderboard-context")).toContainText(
-    `Rank ${leaderboard.rank} of ${leaderboard.totalEntries}`,
-  );
-  await expect(page.locator(".leaderboard-context")).toHaveAttribute(
-    "title",
-    leaderboard.explanation,
-  );
+  if (data.analysis.result.metricRanks) {
+    for (const [metric, rank] of Object.entries(
+      data.analysis.result.metricRanks,
+    )) {
+      const context = leaderboardContext(rank)!;
+      const label =
+        metric === "accuracy"
+          ? "Concentration accuracy"
+          : "Replicate variability";
+      await expect(
+        page.getByRole("img", {
+          name: `${label}: approximately ${context.ordinal} percentile, rank ${context.rank} of ${context.totalEntries}. Higher percentiles are better.`,
+          exact: true,
+        }),
+      ).toBeVisible();
+    }
+    await expect(page.locator(".percentile-scale")).toHaveCount(2);
+    await expect(page.locator(".leaderboard-context")).toHaveCount(0);
+  } else {
+    const leaderboard = leaderboardContext(data.analysis.result.leaderboard)!;
+    await expect(page.locator(".leaderboard-context")).toContainText(
+      `≈${leaderboard.ordinal}`,
+    );
+    await expect(page.locator(".leaderboard-context")).toContainText(
+      `Rank ${leaderboard.rank} of ${leaderboard.totalEntries}`,
+    );
+    await expect(page.locator(".leaderboard-context")).toHaveAttribute(
+      "title",
+      leaderboard.explanation,
+    );
+    await expect(page.locator(".percentile-scale")).toHaveCount(0);
+  }
   await expect(page.locator(".step-record-text")).toHaveText(
     records.map((record) => record.text),
   );

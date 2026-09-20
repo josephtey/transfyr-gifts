@@ -2338,3 +2338,89 @@ time,
 .analysis-review .record-step:last-child:has(.record-step-body:not([hidden])) {
   min-height: 100%;
 }
+
+/* Independent cohort ranks; these scales never reuse the overall rank. */
+.result-metrics.has-percentile-scales {
+  width: min(57%, 760px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 40px;
+}
+.has-percentile-scales > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px 13px;
+}
+.has-percentile-scales .percentile-scale {
+  grid-column: 1 / -1;
+  display: block;
+}
+.percentile-scale-label,
+.percentile-axis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.percentile-scale-label b {
+  font-size: 11px;
+  font-weight: 500;
+  color: #d8ded7;
+}
+.result-metrics .percentile-scale span {
+  display: inline;
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.4;
+  color: #869088;
+}
+.percentile-track {
+  position: relative;
+  height: 4px;
+  margin: 13px 5px 10px;
+  border-radius: 4px;
+  background: #ffffff18;
+}
+.percentile-midpoint {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  width: 1px;
+  height: 10px;
+  background: #ffffff35;
+}
+.percentile-position {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #121615;
+  border-radius: 50%;
+  background: #e4e8dd;
+  box-shadow: 0 0 0 1px #e4e8dd45;
+  transform: translate(-50%, -50%);
+}
+@media (max-width: 1200px) {
+  .result-metrics.has-percentile-scales {
+    width: 62%;
+    gap: 26px;
+  }
+  .has-percentile-scales > div {
+    display: block;
+  }
+  .has-percentile-scales .percentile-scale {
+    margin-top: 18px;
+  }
+}
+@media (max-width: 600px) {
+  .result-metrics.has-percentile-scales {
+    width: 100%;
+    gap: 22px;
+  }
+  .percentile-scale-label {
+    display: block;
+  }
+  .result-metrics .percentile-scale-label span {
+    display: block;
+    margin-top: 5px;
+  }
+}

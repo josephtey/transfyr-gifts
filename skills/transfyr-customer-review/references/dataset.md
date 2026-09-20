@@ -52,6 +52,10 @@ type Session = {
     result: {
       closestAboveTargetPercent: number; replicateVariabilityPercent: number;
       summary: string; leaderboard?: { rank: number; totalEntries: number };
+      metricRanks?: {
+        accuracy: { rank: number; totalEntries: number };
+        variability: { rank: number; totalEntries: number };
+      };
     };
     stages: {
       stepId: string; findingIds: string[];
@@ -89,7 +93,7 @@ In the archived tiered view, the initial selected tiers are `["major"]`. The two
 
 ## Result-led projection
 
-Schema 6 uses `analysis.result` for supplied percentages, an explanatory summary and optional leaderboard rank/cohort size. Keep leaderboard provenance privately. Display approximate overall performance percentile as the share of entries ranked below the subject; do not invent per-measurement percentiles or a score formula.
+Schema 6 uses `analysis.result` for supplied percentages, an explanatory summary and optional leaderboard rank/cohort size. Keep leaderboard provenance privately. Display approximate overall performance percentile as the share of entries ranked below the subject; do not invent per-measurement percentiles or a score formula. Optional `metricRanks` supplies independently verified accuracy and variability ranks for their individual horizontal scales. Leave it absent until the source table supports those comparisons.
 
 `analysis.stages` has one entry per protocol stage, each with `stepId`, ordered `records` and `findingIds`. Each record has a stable ID, neutral title/summary, source action IDs, and start/end inherited from its first/last source actions. Cover every original action once, in order. Keep group boundaries meaningful and unknown stages empty/untimed. The video overlay uses the current grouped title, not atomic-action text.
 

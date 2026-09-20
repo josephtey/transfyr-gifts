@@ -88,6 +88,10 @@ export type Session = {
       replicateVariabilityPercent: number;
       summary: string;
       leaderboard?: { rank: number; totalEntries: number };
+      metricRanks?: {
+        accuracy: { rank: number; totalEntries: number };
+        variability: { rank: number; totalEntries: number };
+      };
     };
     stages: {
       stepId: string;
