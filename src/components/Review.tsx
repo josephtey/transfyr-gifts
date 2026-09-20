@@ -286,33 +286,31 @@ export default function Review({
           aria-label="Reported result"
         >
           <div>
-            <strong>
-              +{session.analysis.result.closestAboveTargetPercent}%
-            </strong>
-            <span>
-              Closest final concentration
-              <br />
-              above target
-            </span>
+            {!metricComparisons && (
+              <strong>
+                +{session.analysis.result.closestAboveTargetPercent}%
+              </strong>
+            )}
+            <span>Closest final concentration above target</span>
             {metricComparisons && (
               <PercentileScale
                 label="Concentration accuracy"
+                value={`+${session.analysis.result.closestAboveTargetPercent}%`}
                 comparison={metricComparisons.accuracy}
               />
             )}
           </div>
           <div>
-            <strong>
-              {session.analysis.result.replicateVariabilityPercent}%
-            </strong>
-            <span>
-              Reported variability
-              <br />
-              between replicates
-            </span>
+            {!metricComparisons && (
+              <strong>
+                {session.analysis.result.replicateVariabilityPercent}%
+              </strong>
+            )}
+            <span>Reported variability between replicates</span>
             {metricComparisons && (
               <PercentileScale
                 label="Replicate variability"
+                value={`${session.analysis.result.replicateVariabilityPercent}%`}
                 comparison={metricComparisons.variability}
               />
             )}
@@ -338,7 +336,6 @@ export default function Review({
             </div>
           )}
         </div>
-        <p>{session.analysis.result.summary}</p>
       </header>
       <main className="workspace">
         <section className="video-column" aria-label="Challenge recording">

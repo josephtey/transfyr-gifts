@@ -128,9 +128,13 @@ test("the result explanation selects all visible findings and replaces the fine-
         metric === "accuracy"
           ? "Concentration accuracy"
           : "Replicate variability";
+      const value =
+        metric === "accuracy"
+          ? `+${data.analysis.result.closestAboveTargetPercent}%`
+          : `${data.analysis.result.replicateVariabilityPercent}%`;
       await expect(
         page.getByRole("img", {
-          name: `${label}: approximately ${context.ordinal} percentile, ${context.detail} Higher percentiles are better.`,
+          name: `${label}: ${value}; approximately ${context.ordinal} percentile, ${context.detail} Higher percentiles are better.`,
           exact: true,
         }),
       ).toBeVisible();
