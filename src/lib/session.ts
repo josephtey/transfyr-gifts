@@ -1,6 +1,7 @@
 import "server-only";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { gunzipSync } from "node:zlib";
 import { get } from "@vercel/blob";
 import type { Session, ArchivedSession } from "./types";
 // Evidence is read on the server, after authentication. New customers use their own
@@ -31,13 +32,25 @@ async function loadDataset<T>(
 ): Promise<T> {
   if (!files[customer]) throw new Error("Unknown customer");
   if (process.env.BLOB_MEDIA === "1") {
-    const result = await get(`data/${customer}/${blobFile}`, {
-      access: "private",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
-    if (!result || result.statusCode !== 200)
-      throw new Error("Review data unavailable");
-    return new Response(result.stream).json();
+    try {
+      const result = await get(`data/${customer}/${blobFile}`, {
+        access: "private",
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+      if (!result || result.statusCode !== 200)
+        throw new Error("Review data unavailable");
+      return new Response(result.stream).json();
+    } catch (blobError) {
+      const customerKey = customer.replace(/[^a-zA-Z0-9]/g, "_").toUpperCase();
+      const prefix = blobFile.includes("archive")
+        ? "ARCHIVED_SESSION_DATA"
+        : "SESSION_DATA";
+      const encoded = process.env[`${prefix}_${customerKey}_GZIP`];
+      if (!encoded) throw blobError;
+      return JSON.parse(
+        gunzipSync(Buffer.from(encoded, "base64")).toString("utf8"),
+      ) as T;
+    }
   }
   return JSON.parse(
     await readFile(path.join(process.cwd(), "src/data", localFile), "utf8"),
