@@ -505,6 +505,27 @@ test("perception switches preserve paused time, frames and audio settings withou
   await expect(page.locator(".form-error[role=alert]")).toHaveCount(0);
 });
 
+test("side and top views stay synchronized with the review", async ({ page }) => {
+  await login(page, "/genentech?t=600");
+  for (const [button, mode] of [
+    ["Side", "side"],
+    ["Top", "top"],
+    ["First-person", "original"],
+  ] as const) {
+    await page.getByRole("button", { name: button, exact: true }).click();
+    await expect(activeVideo(page)).toHaveAttribute("data-mode", mode);
+    const state = await activeVideo(page).evaluate((video: HTMLVideoElement) => ({
+      time: video.currentTime,
+      ready: video.readyState,
+      paused: video.paused,
+    }));
+    expect(state.time).toBeCloseTo(600, 0);
+    expect(state.ready).toBeGreaterThanOrEqual(2);
+    expect(state.paused).toBe(true);
+  }
+  await expect(page.locator(".form-error[role=alert]")).toHaveCount(0);
+});
+
 test("perception keeps playing and retains clip boundaries", async ({
   page,
 }) => {

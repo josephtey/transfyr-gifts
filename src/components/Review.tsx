@@ -15,6 +15,7 @@ import ExitButton from "./ExitButton";
 import EvidenceSection from "./EvidenceSection";
 import SynchronizedVideo, {
   type SynchronizedVideoHandle,
+  type VideoMode,
 } from "./SynchronizedVideo";
 import { buildTimelineMarkers } from "../lib/findings";
 
@@ -54,7 +55,7 @@ export default function Review({
   const clipEnd = useRef<number | null>(null);
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [mode, setMode] = useState<"original" | "overlay">("original");
+  const [mode, setMode] = useState<VideoMode>("original");
   const [muted, setMuted] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -287,20 +288,47 @@ export default function Review({
           <div className="video-label">
             <span>Calibration challenge</span>
             <div className="video-tools">
-              <button
-                className={`perception-toggle ${mode === "overlay" ? "enabled" : ""}`}
-                disabled={switching || loading}
-                aria-busy={switching}
-                aria-pressed={mode === "overlay"}
-                aria-label="Toggle perception overlay"
-                onClick={() => void video.current?.switchMode()}
-              >
-                <Scan size={14} />
-                <span>Perception</span>
-                <span className="toggle-track">
-                  <span />
-                </span>
-              </button>
+              <div className="view-switcher" role="group" aria-label="Recording view">
+                <button
+                  className={mode === "original" ? "enabled" : ""}
+                  disabled={switching || loading}
+                  aria-pressed={mode === "original"}
+                  onClick={() => void video.current?.switchMode("original")}
+                >
+                  First-person
+                </button>
+                <button
+                  className={`perception-toggle ${mode === "overlay" ? "enabled" : ""}`}
+                  disabled={switching || loading}
+                  aria-busy={switching}
+                  aria-pressed={mode === "overlay"}
+                  aria-label="Toggle perception overlay"
+                  onClick={() =>
+                    void video.current?.switchMode(
+                      mode === "overlay" ? "original" : "overlay",
+                    )
+                  }
+                >
+                  <Scan size={13} />
+                  <span>Perception</span>
+                </button>
+                <button
+                  className={mode === "side" ? "enabled" : ""}
+                  disabled={switching || loading}
+                  aria-pressed={mode === "side"}
+                  onClick={() => void video.current?.switchMode("side")}
+                >
+                  Side
+                </button>
+                <button
+                  className={mode === "top" ? "enabled" : ""}
+                  disabled={switching || loading}
+                  aria-pressed={mode === "top"}
+                  onClick={() => void video.current?.switchMode("top")}
+                >
+                  Top
+                </button>
+              </div>
               <ExitButton slug={slug} />
             </div>
           </div>

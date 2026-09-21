@@ -7,14 +7,14 @@ import {
   useEffect,
 } from "react";
 
-type Mode = "original" | "overlay";
+export type VideoMode = "original" | "overlay" | "side" | "top";
 export type SynchronizedVideoHandle = {
   seek: (time: number) => void;
   play: () => Promise<void>;
   pause: () => void;
   getTime: () => number;
   isPaused: () => boolean;
-  switchMode: () => Promise<void>;
+  switchMode: (mode?: VideoMode) => Promise<void>;
 };
 
 // Wait for an actual decodable frame at the requested time, not just metadata.
@@ -60,15 +60,15 @@ export default forwardRef<
     onTime: (time: number) => void;
     onPlaying: (playing: boolean) => void;
     onLoading: (loading: boolean) => void;
-    onMode: (mode: Mode) => void;
+    onMode: (mode: VideoMode) => void;
     onSwitching: (switching: boolean) => void;
     onError: (message: string) => void;
     onClick: () => void;
   }
 >(function SynchronizedVideo(props, ref) {
-  const videos = useRef<Partial<Record<Mode, HTMLVideoElement>>>({});
-  const active = useRef<Mode>("original");
-  const [mode, setMode] = useState<Mode>("original");
+  const videos = useRef<Partial<Record<VideoMode, HTMLVideoElement>>>({});
+  const active = useRef<VideoMode>("original");
+  const [mode, setMode] = useState<VideoMode>("original");
   const switching = useRef(false);
   const desiredTime = useRef(0);
   const pendingSeek = useRef(false);
@@ -108,11 +108,13 @@ export default forwardRef<
         pendingPlay.current = false;
         videos.current[active.current]?.pause();
       },
-      async switchMode() {
+      async switchMode(requestedMode) {
         if (switching.current) return;
         const source = videos.current[active.current];
-        const next: Mode =
-          active.current === "original" ? "overlay" : "original";
+        const next: VideoMode =
+          requestedMode ??
+          (active.current === "original" ? "overlay" : "original");
+        if (next === active.current) return;
         const target = videos.current[next];
         if (!source || !target) return;
         const resume = !source.paused || pendingPlay.current;
@@ -205,7 +207,7 @@ export default forwardRef<
 
   return (
     <>
-      {(["original", "overlay"] as const).map((sourceMode) => (
+      {(["original", "overlay", "side", "top"] as const).map((sourceMode) => (
         <video
           key={sourceMode}
           ref={(element) => {
