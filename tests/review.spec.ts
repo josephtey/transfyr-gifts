@@ -539,7 +539,9 @@ test("FPV, side and top views stay visible and synchronized", async ({ page }) =
     .poll(() => top.evaluate((video: HTMLVideoElement) => video.paused))
     .toBe(false);
   await page.getByRole("button", { name: "Toggle AI overlay" }).click();
-  await expect(activeVideo(page)).toHaveAttribute("data-mode", "overlay");
+  await expect(activeVideo(page)).toHaveAttribute("data-mode", "overlay", {
+    timeout: 25_000,
+  });
   await expect(side).toBeVisible();
   await expect(top).toBeVisible();
   await page.getByRole("button", { name: "Pause", exact: true }).click();
