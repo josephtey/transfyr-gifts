@@ -12,7 +12,7 @@ export async function loadSession(customer: string): Promise<Session> {
   return loadDataset<Session>(
     customer,
     files[customer]?.current,
-    "session-v8.json",
+    "session-v9.json",
   );
 }
 export async function loadArchivedSession(

@@ -318,9 +318,9 @@ test("timeline clusters retain every selected category's notes and omissions rem
 });
 
 test("grouped records cover every source action and retain only explanation-relevant findings", () => {
-  assert.equal(session.schemaVersion, 8);
+  assert.equal(session.schemaVersion, 9);
   assert.equal(session.analysis.stages.length, session.steps.length);
-  assert.equal(session.analysis.findings.length, 8);
+  assert.equal(session.analysis.findings.length, 10);
   const included = new Set(
     session.analysis.findings.map((finding) => finding.id),
   );
@@ -367,7 +367,6 @@ test("grouped records cover every source action and retain only explanation-rele
   const excluded = [
     "tip-in-water",
     "tip-contact",
-    "tip-reuse",
     "tip-fit",
     "bubbles",
     "return-to-source",
@@ -376,6 +375,12 @@ test("grouped records cover every source action and retain only explanation-rele
     session.analysis.findings.every((finding) =>
       finding.sourceIssueIds.every((id) => !excluded.includes(id)),
     ),
+  );
+  assert.deepEqual(
+    session.analysis.findings
+      .filter((finding) => finding.sourceIssueIds.includes("tip-reuse"))
+      .map((finding) => finding.stepIds[0]),
+    ["calibration-1", "calibration-3"],
   );
   assert.match(
     session.analysis.findings.find((finding) => finding.id === "final-water")
