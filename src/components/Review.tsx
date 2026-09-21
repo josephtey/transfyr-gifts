@@ -10,12 +10,11 @@ import {
   ChevronDown,
 } from "lucide-react";
 import type { Session, Issue, RecordStep, CoarseRecord } from "../lib/types";
-import PercentileScale from "./PercentileScale";
+import ResultCard from "./ResultCard";
 import EvidenceSection from "./EvidenceSection";
 import SynchronizedVideo, {
   type SynchronizedVideoHandle,
 } from "./SynchronizedVideo";
-import { leaderboardContext } from "../lib/results";
 import { buildTimelineMarkers } from "../lib/findings";
 
 const clock = (time: number) =>
@@ -41,9 +40,11 @@ function linkRecords(finding: Issue, records: CoarseRecord[]): Issue {
 export default function Review({
   session,
   slug,
+  leaderboardImage,
 }: {
   session: Session;
   slug: string;
+  leaderboardImage?: string;
 }) {
   const video = useRef<SynchronizedVideoHandle>(null);
   const player = useRef<HTMLDivElement>(null);
@@ -61,8 +62,6 @@ export default function Review({
   const [hoveredIssueId, setHoveredIssueId] = useState<string | null>(null);
   const [collapsedSteps, setCollapsedSteps] = useState(() => new Set<string>());
   const findings = session.analysis.findings;
-  const leaderboard = leaderboardContext(session.analysis.result.leaderboard);
-  const metricComparisons = session.analysis.result.metricComparisons;
   const steps = useMemo(
     () =>
       session.analysis.stages.map((stage) => ({
@@ -255,6 +254,7 @@ export default function Review({
     const handler = (event: KeyboardEvent) => {
       if (
         switching ||
+        document.querySelector("dialog[open]") ||
         (event.target as HTMLElement).closest("button,input,a,summary") ||
         event.metaKey ||
         event.ctrlKey ||
@@ -280,71 +280,6 @@ export default function Review({
 
   return (
     <div className="review-app analysis-review">
-      <header className="result-header">
-        <div
-          className={`result-metrics ${metricComparisons ? "has-percentile-scales" : ""}`}
-          aria-label="Reported result"
-        >
-          <div>
-            <h2 className="result-metric-title">Accuracy</h2>
-            <p
-              className="result-measurement"
-              title="Closest final concentration relative to the expected concentration"
-            >
-              <strong>
-                +{session.analysis.result.closestAboveTargetPercent}%
-              </strong>
-              <span>above expected</span>
-            </p>
-            {metricComparisons && (
-              <PercentileScale
-                label="Accuracy"
-                comparison={metricComparisons.accuracy}
-              />
-            )}
-          </div>
-          <div>
-            <h2 className="result-metric-title">Variability</h2>
-            <p
-              className="result-measurement"
-              title="Reported variability between replicates"
-            >
-              <strong>
-                {session.analysis.result.replicateVariabilityPercent}%
-              </strong>
-              <span>variability</span>
-            </p>
-            {metricComparisons && (
-              <PercentileScale
-                label="Replicate variability"
-                comparison={metricComparisons.variability}
-              />
-            )}
-          </div>
-          {metricComparisons && (
-            <p className="percentile-source">
-              {"estimate" in metricComparisons.accuracy ||
-              "estimate" in metricComparisons.variability
-                ? "Image-based percentile estimates. "
-                : "Leaderboard percentiles. "}
-              Informal, uncontrolled cohort; provided for context only.
-            </p>
-          )}
-          {!metricComparisons && leaderboard && (
-            <div
-              className="leaderboard-context"
-              title={leaderboard.explanation}
-            >
-              <strong>≈{leaderboard.ordinal}</strong>
-              <span>
-                Overall percentile
-                <br />
-                Rank {leaderboard.rank} of {leaderboard.totalEntries}
-              </span>
-            </div>
-          )}
-        </div>
-      </header>
       <main className="workspace">
         <section className="video-column" aria-label="Challenge recording">
           <div className="video-label">
@@ -551,11 +486,19 @@ export default function Review({
           )}
         </section>
         <section className="evidence-pane" aria-label="Steps and findings">
+          <ResultCard
+            result={session.analysis.result}
+            imageSrc={
+              leaderboardImage
+                ? `/media/${slug}/${leaderboardImage}`
+                : undefined
+            }
+            onOpenLeaderboard={() => video.current?.pause()}
+          />
           <div className="evidence-heading">
             <div className="log-heading">
-              <h2>System of Record</h2>
+              <h2>What happened?</h2>
             </div>
-            <span className="findings-heading">Likely contributors</span>
           </div>
           <div
             ref={list}

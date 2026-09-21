@@ -1,6 +1,6 @@
 # Transfyr customer reviews
 
-A private, result-led video review built with Next.js and React. Original AI actions are grouped into meaningful operations within the complete protocol. The supplied outcome explanation determines which findings appear beside those records. Reported result metrics and optional overall leaderboard rank/percentile appear above the recording. Percentiles use the share of entries ranked below the current entry. Each measurement can show its own horizontal percentile scale from independent ranks, or clearly labeled visual estimates when the user accepts approximation. An overall rank cannot substitute for those ranks. The full AI log and original adjudications remain in the private dataset; the current grouped step title appears over the video, while the selected finding and its details appear below it. There are no severity filters.
+A private, result-led video review built with Next.js and React. Original AI actions are grouped into meaningful operations within the complete protocol. The supplied outcome explanation determines which findings appear beside those records. Reported result metrics and optional overall leaderboard rank/percentile appear in a compact sidebar card above “What happened?”. A “See on leaderboard” button opens the supplied image without losing the video position. Percentiles use the share of entries ranked below the current entry. Each measurement can show its own horizontal percentile scale from independent ranks, or clearly labeled visual estimates when the user accepts approximation. An overall rank cannot substitute for those ranks. The full AI log and original adjudications remain in the private dataset; the current grouped step title appears over the video, while the selected finding and its details appear below it. There are no severity filters.
 
 Original and perception videos stay mounted. Switching holds the old frame until the alternate source is ready at the same timestamp, then crossfades while preserving playback, speed, volume, mute and clip boundaries. The unbranded access page remains a single password field.
 
@@ -15,7 +15,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:3000/genentech`. Local evidence is intentionally excluded from this public repository. A fresh clone needs the customer's dataset at `src/data/session.json`, videos at `public/media/genentech/`, and stills at `public/frames/genentech/`; alternatively configure the private Blob store and `BLOB_MEDIA=1`.
+Open `http://localhost:3000/genentech`. Local evidence is intentionally excluded from this public repository. A fresh clone needs the customer's dataset at `src/data/session.json`, videos at `public/media/genentech/`, the optional leaderboard image at `public/media/genentech/leaderboard.png`, and stills at `public/frames/genentech/`; alternatively configure the private Blob store and `BLOB_MEDIA=1`.
 
 `npm run test:data` verifies source preservation, review coverage, and count deduplication against the private evidence files. `npm run build` checks types and builds production output. `npm test` runs the browser checks against a running local server. `TEST_BASE_URL` runs them against a deployment. Tests read the password from `.env.local`.
 
@@ -30,6 +30,7 @@ The route is `/<customer>`. To use a customer subdomain, add your owned domain t
 Deployment scope: **joe-5572**. Do not deploy to the Transfyr organization. Project: `transfyr-gifts`.
 
 - Private Vercel Blob contains `media/<customer>/…` and `data/<customer>/session-v8.json`. The frozen previous version uses `data/<customer>/session-archive-2026-09-20.json`; locally it is `src/data/session-archive.json`. Archive data is also excluded from Git and deployment uploads.
+- Set `leaderboardImage` in the customer routing configuration only when the matching private media asset is available. The image stays out of Git, uses the password-protected media route, and is uploaded as an image rather than video.
 - `BLOB_MEDIA=1` makes the server load review data privately and route media requests to authenticated handlers.
 - A valid customer session is required to issue an exact-file, read-only Blob URL. URLs expire after one hour; anyone holding an issued URL can use it until expiry. The unsigned storage URLs deny access.
 - The Blob CDN handles byte-range playback. Attachment-download requests are disabled.
@@ -44,4 +45,4 @@ Upload evidence from the source machine with `node --env-file=.env.local scripts
 
 ## Evidence handling
 
-The human review is primary. Exact AI text, original intervals and human-row mappings remain in the private audit; the System of Record displays neutral step summaries tied to original AI intervals and the findings contain human adjudication, without editing history or correction badges. Every finding is linked to its supporting actions, with separate context links for sequence-level evidence. Stage counts describe the displayed findings; many source actions can support one finding without inflating its count. Clip boundaries are editorial. Browser recordings are compressed derivatives of the original sources, not the full-size source masters. Neither visible pipette settings nor model descriptions establish actual volumes or final concentrations.
+The human review is primary. Exact AI text, original intervals and human-row mappings remain in the private audit; the execution record displays neutral step summaries tied to original AI intervals and the findings contain human adjudication, without editing history or correction badges. Every finding is linked to its supporting actions, with separate context links for sequence-level evidence. Stage counts describe the displayed findings; many source actions can support one finding without inflating its count. Clip boundaries are editorial. Browser recordings are compressed derivatives of the original sources, not the full-size source masters. Neither visible pipette settings nor model descriptions establish actual volumes or final concentrations.

@@ -20,7 +20,7 @@ Build an intimate video review, with the recording as the primary experience. Th
 
 ## Experience
 
-For this user, use a dark, unbranded video review beside one shared scrolling timeline. Error accents are red, risks yellow and observations blue, with category labels. Findings travel with their execution records and use short connected lines rather than crossing curves. Keep the heading “System of Record”. Clicking a record or finding plays the corresponding interval. Animate connections as they enter view; respect reduced motion. Do not show correction history, source-row explanations, linked-action counts or extra play buttons.
+For this user, use a dark, unbranded video review beside one shared scrolling timeline. Error accents are red, risks yellow and observations blue, with category labels. Findings travel with their execution records and use short connected lines rather than crossing curves. Use one “What happened?” heading above the shared timeline, without separate action and finding column labels. Clicking a record or finding plays the corresponding interval. Animate connections as they enter view; respect reduced motion. Do not show correction history, source-row explanations, linked-action counts or extra play buttons.
 
 ### Result-led review
 

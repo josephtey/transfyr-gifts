@@ -11,7 +11,7 @@ export async function GET(
   const { customer, asset } = await params;
   if (
     !customers[customer] ||
-    !asset.every((part) => /^[a-zA-Z0-9_-]+(?:\.(?:mp4|jpg))?$/.test(part))
+    !asset.every((part) => /^[a-zA-Z0-9_-]+(?:\.(?:mp4|jpg|png))?$/.test(part))
   )
     return new NextResponse("Not found", { status: 404 });
   if (

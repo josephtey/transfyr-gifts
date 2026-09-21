@@ -19,5 +19,11 @@ export default async function CustomerPage({
     ))
   )
     redirect(`/${customer}/access`);
-  return <Review session={await loadSession(customer)} slug={customer} />;
+  return (
+    <Review
+      session={await loadSession(customer)}
+      slug={customer}
+      leaderboardImage={customers[customer].leaderboardImage}
+    />
+  );
 }

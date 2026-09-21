@@ -23,7 +23,7 @@ async function login(
     .fill(process.env.CUSTOMER_PASSWORD_GENENTECH!);
   await page.getByLabel("Access password").press("Enter");
   await expect(
-    page.getByRole("heading", { name: "System of Record" }),
+    page.getByRole("heading", { name: "What happened?" }),
   ).toBeVisible();
   const timestamp = new URL(path, base).searchParams.get("t");
   const target =
@@ -62,6 +62,8 @@ test("password protects the review and media; explicit timestamps survive login"
     "/media/genentech/overlay.mp4",
     "/frames/genentech/stock.jpg",
     "/api/media/genentech/original.mp4",
+    "/media/genentech/leaderboard.png",
+    "/api/media/genentech/leaderboard.png",
   ])
     expect(
       (
@@ -97,6 +99,8 @@ test("password protects the review and media; explicit timestamps survive login"
   for (const path of [
     "/media/genentech/original.mp4?download=1",
     "/api/media/genentech/original.mp4?download=1",
+    "/media/genentech/leaderboard.png?download=1",
+    "/api/media/genentech/leaderboard.png?download=1",
   ])
     expect((await page.request.get(base + path)).status()).toBe(404);
 });
@@ -114,6 +118,9 @@ test("the result explanation selects all visible findings and replaces the fine-
   await expect(
     page.getByRole("heading", { name: "Variability", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByText("Likely contributors", { exact: true }),
+  ).toHaveCount(0);
   await expect(page.locator(".tier-filters")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: /Major findings|Minor findings/ }),
@@ -136,9 +143,7 @@ test("the result explanation selects all visible findings and replaces the fine-
     await expect(page.locator(".percentile-scale")).toHaveCount(2);
     const comparisons = Object.values(data.analysis.result.metricComparisons);
     if (comparisons.some((comparison) => "estimate" in comparison)) {
-      await expect(page.locator(".percentile-source")).toHaveText(
-        "Image-based percentile estimates. Informal, uncontrolled cohort; provided for context only.",
-      );
+      await expect(page.locator(".percentile-source")).toHaveCount(0);
       for (const scale of await page.locator(".percentile-scale").all()) {
         await expect(scale).not.toHaveAttribute("aria-label", /rank \d/);
       }
@@ -207,6 +212,89 @@ test("the result explanation selects all visible findings and replaces the fine-
     path: "/tmp/transfyr-analysis-desktop.png",
     fullPage: true,
   });
+});
+
+test("sidebar results open the protected leaderboard without changing the video position", async ({
+  page,
+}) => {
+  await login(page);
+  const card = page.locator(".evidence-pane .result-card");
+  const trigger = card.getByRole("button", { name: "See on leaderboard" });
+  const dialog = page.getByRole("dialog", {
+    name: "Calibration challenge leaderboard",
+  });
+  const image = dialog.getByRole("img");
+  const currentTime = () =>
+    activeVideo(page).evaluate((video: HTMLVideoElement) => video.currentTime);
+  const initialTime = await currentTime();
+  const cardBounds = (await card.boundingBox())!;
+  const headingBounds = (await page
+    .getByRole("heading", { name: "What happened?" })
+    .boundingBox())!;
+  expect(cardBounds.y + cardBounds.height).toBeLessThanOrEqual(headingBounds.y);
+  await expect(page.locator(".result-header")).toHaveCount(0);
+  await expect(
+    page.getByText("Informal, uncontrolled cohort; provided for context only."),
+  ).toHaveCount(0);
+  await trigger.click();
+  await expect(dialog).toBeVisible();
+  await expect(image).toHaveAttribute(
+    "src",
+    "/media/genentech/leaderboard.png",
+  );
+  await expect
+    .poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBe(2048);
+  // Keyboard events from the modal must not reach the player's global shortcuts.
+  await image.click();
+  await expect(
+    dialog.getByRole("button", { name: "Zoom out leaderboard" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Space");
+  expect(await currentTime()).toBeCloseTo(initialTime, 1);
+  await expect
+    .poll(() =>
+      activeVideo(page).evaluate((video: HTMLVideoElement) => video.paused),
+    )
+    .toBe(true);
+  await expect(dialog).toHaveCSS("opacity", "1");
+  await page.screenshot({ path: "/tmp/transfyr-leaderboard-desktop.png" });
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(trigger).toBeFocused();
+  expect(await currentTime()).toBeCloseTo(initialTime, 1);
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect
+    .poll(() =>
+      activeVideo(page).evaluate((video: HTMLVideoElement) => video.paused),
+    )
+    .toBe(false);
+  const beforeOpen = await currentTime();
+  await trigger.click();
+  await expect
+    .poll(() =>
+      activeVideo(page).evaluate((video: HTMLVideoElement) => video.paused),
+    )
+    .toBe(true);
+  expect(Math.abs((await currentTime()) - beforeOpen)).toBeLessThan(2);
+  await dialog.getByRole("button", { name: "Close leaderboard" }).click();
+  await expect(trigger).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await trigger.click();
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBe(2048);
+  await expect(dialog).toHaveCSS("opacity", "1");
+  const bounds = (await dialog.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(844);
+  await page.screenshot({ path: "/tmp/transfyr-leaderboard-mobile.png" });
+  await page.mouse.click(2, 2);
+  await expect(dialog).not.toBeVisible();
+  await expect(trigger).toBeFocused();
 });
 
 test("each finding is connected to its coarse step and plays its evidence with full details", async ({

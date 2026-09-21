@@ -13,13 +13,19 @@ async function upload(directory) {
     if (entry.isDirectory()) await upload(file);
     else {
       const pathname = file.replace(/^public\//, "");
+      const contentType = {
+        ".mp4": "video/mp4",
+        ".jpg": "image/jpeg",
+        ".png": "image/png",
+      }[path.extname(file).toLowerCase()];
+      if (!contentType) throw new Error(`Unsupported media type: ${file}`);
       await put(pathname, await readFile(file), {
         access: "private",
         token,
         addRandomSuffix: false,
         allowOverwrite: true,
         multipart: true,
-        contentType: "video/mp4",
+        contentType,
       });
       console.log("Uploaded", pathname);
     }
