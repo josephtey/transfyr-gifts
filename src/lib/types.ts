@@ -83,7 +83,7 @@ export type CoarseRecord = {
   actionIds: string[];
 };
 export type Session = {
-  schemaVersion: 7;
+  schemaVersion: 8;
   analysis: {
     result: {
       closestAboveTargetPercent: number;

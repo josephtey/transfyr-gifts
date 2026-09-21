@@ -29,7 +29,7 @@ The route is `/<customer>`. To use a customer subdomain, add your owned domain t
 
 Deployment scope: **joe-5572**. Do not deploy to the Transfyr organization. Project: `transfyr-gifts`.
 
-- Private Vercel Blob contains `media/<customer>/…` and `data/<customer>/session-v7.json`. The frozen previous version uses `data/<customer>/session-archive-2026-09-20.json`; locally it is `src/data/session-archive.json`. Archive data is also excluded from Git and deployment uploads.
+- Private Vercel Blob contains `media/<customer>/…` and `data/<customer>/session-v8.json`. The frozen previous version uses `data/<customer>/session-archive-2026-09-20.json`; locally it is `src/data/session-archive.json`. Archive data is also excluded from Git and deployment uploads.
 - `BLOB_MEDIA=1` makes the server load review data privately and route media requests to authenticated handlers.
 - A valid customer session is required to issue an exact-file, read-only Blob URL. URLs expire after one hour; anyone holding an issued URL can use it until expiry. The unsigned storage URLs deny access.
 - The Blob CDN handles byte-range playback. Attachment-download requests are disabled.

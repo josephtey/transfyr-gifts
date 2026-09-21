@@ -112,7 +112,7 @@ test("the result explanation selects all visible findings and replaces the fine-
     `${data.analysis.result.replicateVariabilityPercent}%`,
   );
   await expect(
-    page.getByText("Reported variability", { exact: false }),
+    page.getByRole("heading", { name: "Variability", exact: true }),
   ).toBeVisible();
   await expect(page.locator(".tier-filters")).toHaveCount(0);
   await expect(
@@ -125,16 +125,10 @@ test("the result explanation selects all visible findings and replaces the fine-
     )) {
       const context = metricPercentileContext(comparison)!;
       const label =
-        metric === "accuracy"
-          ? "Concentration accuracy"
-          : "Replicate variability";
-      const value =
-        metric === "accuracy"
-          ? `+${data.analysis.result.closestAboveTargetPercent}%`
-          : `${data.analysis.result.replicateVariabilityPercent}%`;
+        metric === "accuracy" ? "Accuracy" : "Replicate variability";
       await expect(
         page.getByRole("img", {
-          name: `${label}: ${value}; approximately ${context.ordinal} percentile, ${context.detail} Higher percentiles are better.`,
+          name: `${label} performance: approximately ${context.ordinal} percentile; about ${100 - context.percentile}% of the cohort performed better. ${context.detail}`,
           exact: true,
         }),
       ).toBeVisible();
@@ -143,7 +137,7 @@ test("the result explanation selects all visible findings and replaces the fine-
     const comparisons = Object.values(data.analysis.result.metricComparisons);
     if (comparisons.some((comparison) => "estimate" in comparison)) {
       await expect(page.locator(".percentile-source")).toHaveText(
-        "Percentiles estimated from the leaderboard image.",
+        "Image-based percentile estimates. Informal, uncontrolled cohort; provided for context only.",
       );
       for (const scale of await page.locator(".percentile-scale").all()) {
         await expect(scale).not.toHaveAttribute("aria-label", /rank \d/);

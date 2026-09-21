@@ -2328,46 +2328,67 @@ time,
   min-height: 100%;
 }
 
-/* Independent metric comparisons; estimates stay explicitly labeled. */
+/* Measured results and relative performance have distinct visual roles. */
 .result-metrics.has-percentile-scales {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 40px;
+  gap: 20px 40px;
 }
-.result-metrics.has-percentile-scales > div {
+.result-metrics > div {
   display: block;
 }
-.has-percentile-scales > div > span {
-  display: block;
+.result-metric-title {
+  margin: 0 0 10px;
+  color: #d8ded7;
+  font-size: 12px;
+  font-weight: 500;
+}
+.result-measurement {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   margin: 0;
 }
-.has-percentile-scales .percentile-scale {
-  display: block;
-  margin-top: 14px;
+.result-metrics .result-measurement strong {
+  font-size: 26px;
+  letter-spacing: -0.8px;
 }
-.percentile-scale-label,
-.percentile-axis {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.result-metrics .result-measurement span {
+  display: inline;
+  margin: 0;
+  font-size: 12px;
+  color: #a8b2ab;
 }
-.percentile-scale-label b {
-  font-size: 11px;
-  font-weight: 500;
-  color: #d8ded7;
+.percentile-scale {
+  margin-top: 18px;
 }
 .result-metrics .percentile-scale span {
   display: inline;
   margin: 0;
-  font-size: 9px;
-  line-height: 1.4;
+  font-size: 10px;
+  line-height: 1.5;
   color: #869088;
+}
+.result-metrics .performance-label {
+  display: block;
+  margin-bottom: 7px;
+}
+.performance-axis {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.performance-axis > span {
+  font-size: 9px;
+  letter-spacing: 0.6px;
 }
 .percentile-track {
   position: relative;
+  flex: 1;
   height: 4px;
-  margin: 48px 5px 10px;
+  margin: 0 5px;
   border-radius: 4px;
   background: #ffffff18;
 }
@@ -2390,74 +2411,46 @@ time,
   box-shadow: 0 0 0 1px #e4e8dd45;
   transform: translate(-50%, -50%);
 }
-@media (max-width: 1200px) {
-  .result-metrics.has-percentile-scales {
-    gap: 26px;
-  }
-  .has-percentile-scales > div {
-    display: block;
-  }
-  .has-percentile-scales .percentile-scale {
-    margin-top: 18px;
-  }
+.percentile-caption {
+  margin: 12px 0 0;
+  font-size: 11px;
+  line-height: 1.7;
 }
-@media (max-width: 600px) {
-  .result-metrics.has-percentile-scales {
-    width: 100%;
-    gap: 22px;
-  }
-  .percentile-scale-label {
-    display: block;
-  }
-  .result-metrics .percentile-scale-label span {
-    display: block;
-    margin-top: 5px;
-  }
+.percentile-caption b {
+  font-weight: 500;
+  color: #d8ded7;
 }
-
+.result-metrics .percentile-caption span {
+  font-size: inherit;
+}
 .result-metrics .percentile-source {
   grid-column: 1 / -1;
-  margin: -22px 0 0;
+  margin: 0;
   color: #869088;
   font-size: 10px;
-  line-height: 1.4;
-}
-@media (max-width: 1200px) {
-  .result-metrics .percentile-source {
-    margin-top: -10px;
-  }
-}
-
-.result-metrics .percentile-value {
-  position: absolute;
-  bottom: 17px;
-  left: clamp(40px, var(--marker-position), calc(100% - 40px));
-  transform: translateX(-50%);
-  width: 80px;
-  padding: 5px 0;
-  border-radius: 5px;
-  background: #232a25;
-  text-align: center;
-  white-space: nowrap;
-  font-size: 20px;
-  letter-spacing: -0.6px;
-  line-height: 1;
-}
-.percentile-value-pointer {
-  position: absolute;
-  left: var(--marker-position);
-  bottom: 10px;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 7px solid #232a25;
+  line-height: 1.5;
 }
 @media (max-width: 600px) {
-  .result-metrics .percentile-value {
-    font-size: 17px;
-    width: 70px;
-    left: clamp(35px, var(--marker-position), calc(100% - 35px));
+  .result-metrics.has-percentile-scales {
+    gap: 20px 22px;
+  }
+  .result-metrics .result-measurement strong {
+    font-size: 24px;
+  }
+  .result-measurement {
+    display: block;
+  }
+  .result-metrics .result-measurement span {
+    display: block;
+    margin-top: 7px;
+  }
+  .performance-axis {
+    gap: 5px;
+  }
+  .percentile-track {
+    margin: 0 3px;
+  }
+  .percentile-caption b {
+    white-space: nowrap;
   }
 }

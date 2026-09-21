@@ -318,7 +318,7 @@ test("timeline clusters retain every selected category's notes and omissions rem
 });
 
 test("grouped records cover every source action and retain only explanation-relevant findings", () => {
-  assert.equal(session.schemaVersion, 7);
+  assert.equal(session.schemaVersion, 8);
   assert.equal(session.analysis.stages.length, session.steps.length);
   assert.equal(session.analysis.findings.length, 8);
   const included = new Set(

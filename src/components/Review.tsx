@@ -286,42 +286,50 @@ export default function Review({
           aria-label="Reported result"
         >
           <div>
-            {!metricComparisons && (
+            <h2 className="result-metric-title">Accuracy</h2>
+            <p
+              className="result-measurement"
+              title="Closest final concentration relative to the expected concentration"
+            >
               <strong>
                 +{session.analysis.result.closestAboveTargetPercent}%
               </strong>
-            )}
-            <span>Closest final concentration above target</span>
+              <span>above expected</span>
+            </p>
             {metricComparisons && (
               <PercentileScale
-                label="Concentration accuracy"
-                value={`+${session.analysis.result.closestAboveTargetPercent}%`}
+                label="Accuracy"
                 comparison={metricComparisons.accuracy}
               />
             )}
           </div>
           <div>
-            {!metricComparisons && (
+            <h2 className="result-metric-title">Variability</h2>
+            <p
+              className="result-measurement"
+              title="Reported variability between replicates"
+            >
               <strong>
                 {session.analysis.result.replicateVariabilityPercent}%
               </strong>
-            )}
-            <span>Reported variability between replicates</span>
+              <span>variability</span>
+            </p>
             {metricComparisons && (
               <PercentileScale
                 label="Replicate variability"
-                value={`${session.analysis.result.replicateVariabilityPercent}%`}
                 comparison={metricComparisons.variability}
               />
             )}
           </div>
-          {metricComparisons &&
-            ("estimate" in metricComparisons.accuracy ||
-              "estimate" in metricComparisons.variability) && (
-              <p className="percentile-source">
-                Percentiles estimated from the leaderboard image.
-              </p>
-            )}
+          {metricComparisons && (
+            <p className="percentile-source">
+              {"estimate" in metricComparisons.accuracy ||
+              "estimate" in metricComparisons.variability
+                ? "Image-based percentile estimates. "
+                : "Leaderboard percentiles. "}
+              Informal, uncontrolled cohort; provided for context only.
+            </p>
+          )}
           {!metricComparisons && leaderboard && (
             <div
               className="leaderboard-context"

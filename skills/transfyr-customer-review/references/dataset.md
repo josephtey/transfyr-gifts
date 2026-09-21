@@ -1,6 +1,6 @@
 # Review dataset
 
-Load the customer dataset on the server after authentication. Keep actual customer evidence out of the public source repository. The current view uses schema version 7, with a private audit, grouped AI operations and separate human findings. The archived detailed view uses schema version 4.
+Load the customer dataset on the server after authentication. Keep actual customer evidence out of the public source repository. The current view uses schema version 8, with a private audit, grouped AI operations and separate human findings. The archived detailed view uses schema version 4.
 
 ```ts
 type Action = {
@@ -46,7 +46,7 @@ type ScientificCaution = {
   reason: string; // private scientific assessment; preserve uncertainty in customer copy
 };
 type Session = {
-  schemaVersion: 7; customer: string; operator: string;
+  schemaVersion: 8; customer: string; operator: string;
   title: string; duration: number;
   analysis: {
     result: {
@@ -83,7 +83,7 @@ Every human clear-error cell and run-summary note must reach a finding in the pr
 
 Use `actionIds` for direct evidence and `contextActionIds` for surrounding sequence. Keep those sets disjoint. The shared scrolling view can group contiguous task segments, repeat a finding beside its evidence in each segment, and draw each relationship once. Check connector endpoints after resizing, scrolling and content changes. Visual instances never change the data count.
 
-Storage paths: `data/<customer>/session-v7.json`, `media/<customer>/original.mp4`, `media/<customer>/overlay.mp4`, `media/<customer>/clips/action-<action-id>.mp4`, and private frames. Change the dataset filename when rolling out incompatible schemas so an older deployment can still load its original data. Browser media paths pass through customer authorization. Customer passwords and hostname mappings belong in server configuration, never in the dataset.
+Storage paths: `data/<customer>/session-v8.json`, `media/<customer>/original.mp4`, `media/<customer>/overlay.mp4`, `media/<customer>/clips/action-<action-id>.mp4`, and private frames. Change the dataset filename when rolling out incompatible schemas so an older deployment can still load its original data. Browser media paths pass through customer authorization. Customer passwords and hostname mappings belong in server configuration, never in the dataset.
 
 Manual stages follow observed work and the original protocol. Keep unknown stages untimed and their counts null, not zero. Assign each finding explicit `stepIds` from its primary evidence; assign a run-level omission to the relevant protocol stage. Context actions do not establish ownership. Only render findings within those stages, so a setup step cannot show an error counted under a later dilution step.
 
@@ -93,7 +93,7 @@ In the archived tiered view, the initial selected tiers are `["major"]`. The two
 
 ## Result-led projection
 
-Schema 7 uses `analysis.result` for supplied percentages, an explanatory summary and optional leaderboard rank/cohort size. Keep leaderboard provenance privately. Display approximate overall performance percentile as the share of entries ranked below the subject; do not invent per-measurement percentiles or a score formula. Optional `metricComparisons` supplies independent ranks or, when the user accepts approximation, image-based percentile estimates for the individual horizontal scales. Estimates must be visibly labeled, rounded to avoid spurious precision and never converted into purported exact ranks. Preserve the image and estimate rationale in the private audit.
+Schema 8 uses `analysis.result` for supplied percentages, an explanatory summary and optional leaderboard rank/cohort size. Keep leaderboard provenance privately. Display approximate overall performance percentile as the share of entries ranked below the subject; do not invent per-measurement percentiles or a score formula. Optional `metricComparisons` supplies independent ranks or, when the user accepts approximation, image-based percentile estimates for the individual horizontal scales. Estimates must be visibly labeled, rounded to avoid spurious precision and never converted into purported exact ranks. Preserve the image and estimate rationale in the private audit.
 
 `analysis.stages` has one entry per protocol stage, each with `stepId`, ordered `records` and `findingIds`. Each record has a stable ID, neutral title/summary, source action IDs, and start/end inherited from its first/last source actions. Cover every original action once, in order. Keep group boundaries meaningful and unknown stages empty/untimed. The video overlay uses the current grouped title, not atomic-action text.
 
