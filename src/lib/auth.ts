@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 export const cookieName = (customer: string) => `transfyr_${customer}`;
 // Bumped for the introduction launch: previously issued logins must sign in again.
-const SESSION_VERSION = 2;
+const SESSION_VERSION = 3;
 function secret() {
   const value = process.env.SESSION_SECRET;
   if (!value || value.length < 32)

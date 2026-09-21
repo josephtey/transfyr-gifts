@@ -7,17 +7,20 @@ import Review from "./Review";
 import ResultMetrics from "./ResultMetrics";
 import ExitButton from "./ExitButton";
 
-type Beat = "welcome" | "results" | "why";
+const beats = ["welcome", "challenge", "results", "why"] as const;
+type Beat = (typeof beats)[number];
 
 export default function ReviewExperience({
   session,
   slug,
   leaderboardImage,
+  protocolImage,
   showIntro,
 }: {
   session: Session;
   slug: string;
   leaderboardImage?: string;
+  protocolImage?: string;
   showIntro: boolean;
 }) {
   const [complete, setComplete] = useState(!showIntro);
@@ -139,7 +142,7 @@ export default function ReviewExperience({
             {beat === "welcome" && (
               <>
                 <p className="intro-greeting">
-                  Hey! Thanks for stopping by and taking the
+                  Hey! Thanks for stopping by—and for completing the
                   <br className="intro-desktop-break" /> Transfyr Calibration
                   Challenge.
                 </p>
@@ -153,11 +156,63 @@ export default function ReviewExperience({
                 </h1>
                 <button
                   className="intro-continue"
-                  onClick={() => advance("results")}
+                  onClick={() => advance("challenge")}
                   disabled={leaving}
                 >
-                  See my results <ArrowRight size={17} aria-hidden="true" />
+                  Remember the challenge{" "}
+                  <ArrowRight size={17} aria-hidden="true" />
                 </button>
+              </>
+            )}
+            {beat === "challenge" && (
+              <>
+                <div className="intro-challenge-copy">
+                  <p className="intro-kicker">The challenge</p>
+                  <h1 ref={heading} tabIndex={-1} id="intro-heading">
+                    Build a dilution series in duplicate.
+                  </h1>
+                  <ol className="intro-protocol">
+                    <li>
+                      <span>01</span>
+                      <b>Calibration 1</b>
+                      <em>1:1 from BSA stock</em>
+                    </li>
+                    <li>
+                      <span>02</span>
+                      <b>Calibration 2</b>
+                      <em>1:1 from Calibration 1</em>
+                    </li>
+                    <li>
+                      <span>03</span>
+                      <b>Calibration 3</b>
+                      <em>1:10 from Calibration 2</em>
+                    </li>
+                    <li>
+                      <span>04</span>
+                      <b>Blanks</b>
+                      <em>Water only</em>
+                    </li>
+                  </ol>
+                  <p className="intro-protocol-note">
+                    Eight tubes · QR top for Calibration 3 · two replicates ·
+                    0.45 mL BSA stock available
+                  </p>
+                  <button
+                    className="intro-continue"
+                    onClick={() => advance("results")}
+                    disabled={leaving}
+                  >
+                    See my results <ArrowRight size={17} aria-hidden="true" />
+                  </button>
+                </div>
+                {protocolImage && (
+                  <div className="intro-protocol-figure">
+                    <img
+                      src={`/media/${slug}/${protocolImage}`}
+                      alt="Diagram of the duplicate BSA dilution series: Calibration 1 at 1 to 1, Calibration 2 at 1 to 1, Calibration 3 at 1 to 10, and water-only blanks."
+                    />
+                  </div>
+                )}
               </>
             )}
             {beat === "results" && (
@@ -201,13 +256,13 @@ export default function ReviewExperience({
           </section>
           <div
             className="intro-progress"
-            aria-label={`Introduction: ${beat === "welcome" ? "welcome" : beat === "results" ? "your results" : "explore why"}`}
+            aria-label={`Introduction: ${beat === "welcome" ? "welcome" : beat === "challenge" ? "challenge reminder" : beat === "results" ? "your results" : "explore why"}`}
           >
-            {(["welcome", "results", "why"] as const).map((step, index) => (
+            {beats.map((step, index) => (
               <span
                 key={step}
                 data-current={beat === step}
-                data-past={index < ["welcome", "results", "why"].indexOf(beat)}
+                data-past={index < beats.indexOf(beat)}
               />
             ))}
           </div>

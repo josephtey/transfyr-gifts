@@ -14,6 +14,7 @@ const records = data.analysis.stages.flatMap((stage) => stage.records);
 const activeVideo = (page: import("@playwright/test").Page) =>
   page.locator('video[data-active="true"]');
 async function finishIntro(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "Remember the challenge" }).click();
   await page.getByRole("button", { name: "See my results" }).click();
   await page.getByRole("button", { name: "Take a closer look" }).click();
   await expect(
@@ -71,7 +72,9 @@ test("password protects the review and media; explicit timestamps survive login"
     "/frames/genentech/stock.jpg",
     "/api/media/genentech/original.mp4",
     "/media/genentech/leaderboard.png",
+    "/media/genentech/protocol.png",
     "/api/media/genentech/leaderboard.png",
+    "/api/media/genentech/protocol.png",
   ])
     expect(
       (

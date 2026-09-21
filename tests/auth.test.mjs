@@ -11,6 +11,7 @@ test("previous session generations are rejected despite valid signatures", async
   for (const claims of [
     { customer: "test" },
     { customer: "test", version: 1, introComplete: true },
+    { customer: "test", version: 2, introComplete: true },
   ]) {
     const old = await new SignJWT(claims)
       .setProtectedHeader({ alg: "HS256" })

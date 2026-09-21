@@ -21,7 +21,7 @@ async function enter(
   ).toBeVisible();
 }
 
-test("new login shows welcome, results and why once, preserving deep links on return", async ({
+test("new login shows welcome, challenge, results and why once, preserving deep links on return", async ({
   page,
 }) => {
   await enter(page);
@@ -40,9 +40,32 @@ test("new login shows welcome, results and why once, preserving deep links on re
   await page.screenshot({ path: "/tmp/transfyr-intro-welcome.png" });
   await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("button", { name: "See my results" }),
+    page.getByRole("button", { name: "Remember the challenge" }),
   ).toBeFocused();
   await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("heading", {
+      name: "Build a dilution series in duplicate.",
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".intro-protocol li")).toHaveCount(4);
+  await expect(page.locator(".intro-protocol-figure img")).toHaveAttribute(
+    "src",
+    "/media/genentech/protocol.png",
+  );
+  await expect
+    .poll(() =>
+      page
+        .locator(".intro-protocol-figure img")
+        .evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBe(1596);
+  await expect(page.locator(".intro-protocol-figure")).toHaveCSS(
+    "opacity",
+    "1",
+  );
+  await page.screenshot({ path: "/tmp/transfyr-intro-challenge.png" });
+  await page.getByRole("button", { name: "See my results" }).click();
   await expect(
     page.getByRole("heading", { name: "Your results." }),
   ).toBeVisible();
@@ -104,6 +127,14 @@ test("the intro fits a narrow screen and respects reduced motion", async ({
     "none",
   );
   await page.screenshot({ path: "/tmp/transfyr-intro-mobile-welcome.png" });
+  await page.getByRole("button", { name: "Remember the challenge" }).click();
+  await expect(page.locator(".intro-challenge")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: "/tmp/transfyr-intro-mobile-challenge.png" });
   await page.getByRole("button", { name: "See my results" }).click();
   await expect(page.locator(".intro-results")).toBeVisible();
   expect(
@@ -148,6 +179,7 @@ test("revoked sessions cannot access reviews or media, and intro completion is a
   for (const path of [
     "/media/genentech/original.mp4",
     "/api/media/genentech/leaderboard.png",
+    "/api/media/genentech/protocol.png",
   ]) {
     expect(
       (
@@ -186,6 +218,7 @@ test("failed intro completion can retry without losing the review", async ({
   await page.route("**/api/intro/genentech", (route) =>
     route.fulfill({ status: 503 }),
   );
+  await page.getByRole("button", { name: "Remember the challenge" }).click();
   await page.getByRole("button", { name: "See my results" }).click();
   await page.getByRole("button", { name: "Take a closer look" }).click();
   await expect(page.locator(".intro-retry").getByRole("alert")).toContainText(
@@ -204,6 +237,9 @@ test("Exit signs out from both the intro and review, and the password focus has 
   for (const fromReview of [false, true]) {
     await enter(page);
     if (fromReview) {
+      await page
+        .getByRole("button", { name: "Remember the challenge" })
+        .click();
       await page.getByRole("button", { name: "See my results" }).click();
       await page.getByRole("button", { name: "Take a closer look" }).click();
       await expect(

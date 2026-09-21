@@ -2660,6 +2660,75 @@ time,
 .intro-results h1 {
   font-size: clamp(38px, 4vw, 52px);
 }
+.intro-challenge {
+  width: min(1120px, 100%);
+  display: grid;
+  grid-template-columns: minmax(340px, 0.72fr) minmax(420px, 1.28fr);
+  align-items: center;
+  gap: 56px;
+}
+.intro-kicker {
+  margin: 0 0 18px;
+  color: #8e9a91;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.intro-challenge h1 {
+  font-size: clamp(38px, 4.2vw, 58px);
+}
+.intro-protocol {
+  list-style: none;
+  margin: 34px 0 0;
+  padding: 0;
+  border-top: 1px solid #ffffff12;
+}
+.intro-protocol li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 13px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-bottom: 1px solid #ffffff0d;
+}
+.intro-protocol span {
+  color: #77827b;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.intro-protocol b {
+  color: #e5e9e1;
+  font-size: 13px;
+  font-weight: 500;
+}
+.intro-protocol em {
+  color: #9ca7a0;
+  font-size: 12px;
+  font-style: normal;
+  text-align: right;
+}
+.intro-protocol-note {
+  margin: 16px 0 0;
+  color: #87928a;
+  font-size: 11px;
+}
+.intro-challenge .intro-continue {
+  margin-top: 28px;
+}
+.intro-protocol-figure {
+  overflow: hidden;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px #ffffff16,
+    0 24px 80px #0004;
+  animation: intro-enter 750ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both;
+}
+.intro-protocol-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
 .intro-results .result-metrics {
   margin-top: 54px;
   gap: 48px 70px;
@@ -2827,6 +2896,30 @@ time,
   }
   .intro-results .result-metric-title {
     font-size: 12px;
+  }
+  .intro-challenge {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 26px;
+    padding-top: 36px;
+  }
+  .intro-challenge h1 {
+    font-size: 34px;
+  }
+  .intro-protocol {
+    margin-top: 24px;
+  }
+  .intro-protocol li {
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 5px 10px;
+  }
+  .intro-protocol em {
+    grid-column: 2;
+    text-align: left;
+  }
+  .intro-protocol-figure {
+    order: -1;
   }
   .intro-continue {
     margin-top: 36px;

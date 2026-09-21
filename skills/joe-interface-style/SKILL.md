@@ -43,7 +43,7 @@ For video review, keep the current grouped step title at the top of the image, r
 
 For the private gift/review experience, the access page is just a centered password input submitted with Enter. The customer view has no logo, customer-name banner, download menu or copy-link control. A quiet Exit button signs out to the password screen. Keep the password field border and focus outline hidden while focused. These are preferences for that focused experience, not blanket rules for every application Joe uses.
 
-When an introductory story is requested, use a short, restrained sequence: welcome and reflection, results, then “Why?” revealing the evidence. Let the reader choose when to advance through substantive copy; remember completion per login rather than replaying on every refresh. Respect reduced motion and preserve keyboard focus.
+When an introductory story is requested, use a short, restrained sequence: welcome and reflection, a concise reminder of the task when useful, results, then “Why?” revealing the evidence. Prefer a compact visual and scan-friendly steps over reproducing the full instructions. Let the reader choose when to advance through substantive copy; remember completion per login rather than replaying on every refresh. Respect reduced motion and preserve keyboard focus.
 
 When Joe wants to keep an earlier design, preserve an accessible version with its own frozen data instead of silently replacing it. This is an instruction to preserve work, not permission to publish private content.
 

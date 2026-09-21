@@ -32,6 +32,8 @@ Keep the current grouped step title at the top of the video independently of fin
 
 ### Media interaction and access
 
+When a customer needs protocol context before seeing the result, add a concise challenge-reminder beat to the first-login introduction. Show the supplied protocol diagram through the authenticated private-media path and summarize only the essential sequence, replicates and material constraint. Do not reproduce the full instruction sheet as dense copy.
+
 Preserve original/perception timestamp, play/pause state, speed, volume, mute and contextual clip boundaries. Keep both media elements mounted. Hold the displayed decoded frame until the alternate source has sought and decoded the matching timestamp, then crossfade. Ignore inactive-video events; they must never reset the playhead or scroll position. Guard repeated switches, handle delayed metadata and failure, and respect reduced motion. Inspect the timebases before assuming the recordings align.
 
 The access screen contains only a password input, submitted with Enter; show a failed entry through the field. Do not add company/customer branding, download or copy-link controls. A quiet Exit button signs out to the password input, whose border and focus outline are hidden while focused. Disable attachment-download requests.

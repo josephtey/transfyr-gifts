@@ -22,6 +22,7 @@ export default async function CustomerPage({
       session={await loadSession(customer)}
       slug={customer}
       leaderboardImage={customers[customer].leaderboardImage}
+      protocolImage={customers[customer].protocolImage}
       showIntro={!access.introComplete}
     />
   );

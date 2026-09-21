@@ -1,12 +1,18 @@
 // Public routing metadata only. Never put passwords or evidence in this file.
 export const customers: Record<
   string,
-  { name: string; passwordEnv: string; leaderboardImage?: string }
+  {
+    name: string;
+    passwordEnv: string;
+    leaderboardImage?: string;
+    protocolImage?: string;
+  }
 > = {
   genentech: {
     name: "Genentech",
     passwordEnv: "CUSTOMER_PASSWORD_GENENTECH",
     leaderboardImage: "leaderboard.png",
+    protocolImage: "protocol.png",
   },
 };
 export function customerForHost(host: string): string | undefined {
