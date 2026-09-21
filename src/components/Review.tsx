@@ -288,47 +288,20 @@ export default function Review({
           <div className="video-label">
             <span>Calibration challenge</span>
             <div className="video-tools">
-              <div className="view-switcher" role="group" aria-label="Recording view">
-                <button
-                  className={mode === "original" ? "enabled" : ""}
-                  disabled={switching || loading}
-                  aria-pressed={mode === "original"}
-                  onClick={() => void video.current?.switchMode("original")}
-                >
-                  First-person
-                </button>
-                <button
-                  className={`perception-toggle ${mode === "overlay" ? "enabled" : ""}`}
-                  disabled={switching || loading}
-                  aria-busy={switching}
-                  aria-pressed={mode === "overlay"}
-                  aria-label="Toggle perception overlay"
-                  onClick={() =>
-                    void video.current?.switchMode(
-                      mode === "overlay" ? "original" : "overlay",
-                    )
-                  }
-                >
-                  <Scan size={13} />
-                  <span>Perception</span>
-                </button>
-                <button
-                  className={mode === "side" ? "enabled" : ""}
-                  disabled={switching || loading}
-                  aria-pressed={mode === "side"}
-                  onClick={() => void video.current?.switchMode("side")}
-                >
-                  Side
-                </button>
-                <button
-                  className={mode === "top" ? "enabled" : ""}
-                  disabled={switching || loading}
-                  aria-pressed={mode === "top"}
-                  onClick={() => void video.current?.switchMode("top")}
-                >
-                  Top
-                </button>
-              </div>
+              <button
+                className={`perception-toggle ${mode === "overlay" ? "enabled" : ""}`}
+                disabled={switching || loading}
+                aria-busy={switching}
+                aria-pressed={mode === "overlay"}
+                aria-label="Toggle AI overlay"
+                onClick={() => void video.current?.switchMode()}
+              >
+                <Scan size={13} />
+                <span>AI</span>
+                <span className="toggle-track" aria-hidden="true">
+                  <span />
+                </span>
+              </button>
               <ExitButton slug={slug} />
             </div>
           </div>
@@ -338,6 +311,7 @@ export default function Review({
                 ref={video}
                 slug={slug}
                 muted={muted}
+                caption={activeRecord?.title}
                 onTime={updateTime}
                 onPlaying={setPlaying}
                 onLoading={setLoading}
@@ -346,11 +320,6 @@ export default function Review({
                 onError={setError}
                 onClick={togglePlay}
               />
-              {activeRecord && (
-                <p className="action-caption" aria-label="Current step">
-                  {activeRecord.title}
-                </p>
-              )}
               {!playing && !loading && !switching && (
                 <button
                   className="big-play"

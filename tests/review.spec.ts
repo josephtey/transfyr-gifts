@@ -453,7 +453,7 @@ test("perception switches preserve paused time, frames and audio settings withou
 }) => {
   await login(page, "/genentech?t=400");
   const toggle = page.getByRole("button", {
-    name: "Toggle perception overlay",
+    name: "Toggle AI overlay",
   });
   await activeVideo(page).evaluate((v: HTMLVideoElement) => {
     v.playbackRate = 1.5;
@@ -505,24 +505,44 @@ test("perception switches preserve paused time, frames and audio settings withou
   await expect(page.locator(".form-error[role=alert]")).toHaveCount(0);
 });
 
-test("side and top views stay synchronized with the review", async ({ page }) => {
+test("FPV, side and top views stay visible and synchronized", async ({ page }) => {
   await login(page, "/genentech?t=600");
-  for (const [button, mode] of [
-    ["Side", "side"],
-    ["Top", "top"],
-    ["First-person", "original"],
-  ] as const) {
-    await page.getByRole("button", { name: button, exact: true }).click();
-    await expect(activeVideo(page)).toHaveAttribute("data-mode", mode);
-    const state = await activeVideo(page).evaluate((video: HTMLVideoElement) => ({
-      time: video.currentTime,
-      ready: video.readyState,
-      paused: video.paused,
-    }));
-    expect(state.time).toBeCloseTo(600, 0);
-    expect(state.ready).toBeGreaterThanOrEqual(2);
-    expect(state.paused).toBe(true);
-  }
+  const side = page.locator('video[data-mode="side"]');
+  const top = page.locator('video[data-mode="top"]');
+  await expect(side).toBeVisible();
+  await expect(top).toBeVisible();
+  await expect(page.getByText("FPV", { exact: true })).toBeVisible();
+  await expect(page.getByText("Side", { exact: true })).toBeVisible();
+  await expect(page.getByText("Top", { exact: true })).toBeVisible();
+  await expect
+    .poll(async () => {
+      const primaryTime = await activeVideo(page).evaluate(
+        (video: HTMLVideoElement) => video.currentTime,
+      );
+      const sideTime = await side.evaluate(
+        (video: HTMLVideoElement) => video.currentTime,
+      );
+      const topTime = await top.evaluate(
+        (video: HTMLVideoElement) => video.currentTime,
+      );
+      return Math.max(
+        Math.abs(primaryTime - sideTime),
+        Math.abs(primaryTime - topTime),
+      );
+    })
+    .toBeLessThan(0.5);
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect
+    .poll(() => side.evaluate((video: HTMLVideoElement) => video.paused))
+    .toBe(false);
+  await expect
+    .poll(() => top.evaluate((video: HTMLVideoElement) => video.paused))
+    .toBe(false);
+  await page.getByRole("button", { name: "Toggle AI overlay" }).click();
+  await expect(activeVideo(page)).toHaveAttribute("data-mode", "overlay");
+  await expect(side).toBeVisible();
+  await expect(top).toBeVisible();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
   await expect(page.locator(".form-error[role=alert]")).toHaveCount(0);
 });
 
@@ -534,7 +554,7 @@ test("perception keeps playing and retains clip boundaries", async ({
   const before = await activeVideo(page).evaluate(
     (v: HTMLVideoElement) => v.currentTime,
   );
-  await page.getByRole("button", { name: "Toggle perception overlay" }).click();
+  await page.getByRole("button", { name: "Toggle AI overlay" }).click();
   await expect(activeVideo(page)).toHaveAttribute("data-mode", "overlay");
   await expect
     .poll(() => activeVideo(page).evaluate((v: HTMLVideoElement) => v.paused))
@@ -551,10 +571,10 @@ test("perception keeps playing and retains clip boundaries", async ({
     (action) => action.id === finding.actionIds[0],
   )!;
   await page.locator('[data-issue="stock-bypass"] .issue-trigger').click();
-  await page.getByRole("button", { name: "Toggle perception overlay" }).click();
+  await page.getByRole("button", { name: "Toggle AI overlay" }).click();
   await expect(activeVideo(page)).toHaveAttribute("data-mode", "original");
   await expect(
-    page.getByRole("button", { name: "Toggle perception overlay" }),
+    page.getByRole("button", { name: "Toggle AI overlay" }),
   ).toBeEnabled();
   await activeVideo(page).evaluate((v: HTMLVideoElement, end) => {
     v.currentTime = end! + 0.1;
@@ -570,8 +590,11 @@ test("the grouped step title replaces atomic captions and playback follows group
   await login(page, "/genentech?t=0");
   await expect(page.locator(".action-caption")).toHaveText(records[0].title);
   const caption = await page.locator(".action-caption").boundingBox();
-  const surface = await page.locator(".video-surface").boundingBox();
-  expect(caption!.y - surface!.y).toBe(12);
+  const fpv = await page.locator(".fpv-view").boundingBox();
+  expect(caption!.x - fpv!.x).toBe(14);
+  expect(Math.round(fpv!.y + fpv!.height - caption!.y - caption!.height)).toBe(
+    14,
+  );
   await activeVideo(page).evaluate((v: HTMLVideoElement) => {
     v.currentTime = 66;
   });
@@ -699,7 +722,7 @@ test("a slow perception load holds the current frame and playhead until the new 
   try {
     await login(page, "/genentech?t=400");
     const toggle = page.getByRole("button", {
-      name: "Toggle perception overlay",
+      name: "Toggle AI overlay",
     });
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-busy", "true");

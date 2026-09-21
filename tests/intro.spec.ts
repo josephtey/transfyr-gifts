@@ -45,7 +45,7 @@ test("new login shows welcome, challenge, results and why once, preserving deep 
   await page.keyboard.press("Enter");
   await expect(
     page.getByRole("heading", {
-      name: "Build a dilution series in duplicate.",
+      name: "Remember what you did?",
     }),
   ).toBeVisible();
   await expect(page.locator(".intro-protocol li")).toHaveCount(4);

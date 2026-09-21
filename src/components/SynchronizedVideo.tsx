@@ -7,7 +7,8 @@ import {
   useEffect,
 } from "react";
 
-export type VideoMode = "original" | "overlay" | "side" | "top";
+export type VideoMode = "original" | "overlay";
+type VideoSource = VideoMode | "side" | "top";
 export type SynchronizedVideoHandle = {
   seek: (time: number) => void;
   play: () => Promise<void>;
@@ -57,6 +58,7 @@ export default forwardRef<
   {
     slug: string;
     muted: boolean;
+    caption?: string;
     onTime: (time: number) => void;
     onPlaying: (playing: boolean) => void;
     onLoading: (loading: boolean) => void;
@@ -66,7 +68,7 @@ export default forwardRef<
     onClick: () => void;
   }
 >(function SynchronizedVideo(props, ref) {
-  const videos = useRef<Partial<Record<VideoMode, HTMLVideoElement>>>({});
+  const videos = useRef<Partial<Record<VideoSource, HTMLVideoElement>>>({});
   const active = useRef<VideoMode>("original");
   const [mode, setMode] = useState<VideoMode>("original");
   const switching = useRef(false);
@@ -90,23 +92,31 @@ export default forwardRef<
       seek(time) {
         desiredTime.current = time;
         pendingSeek.current = true;
-        const video = videos.current[active.current];
-        if (video && video.readyState >= 1) {
-          video.currentTime = time;
+        for (const video of Object.values(videos.current))
+          if (video && video.readyState >= 1) video.currentTime = time;
+        if ((videos.current[active.current]?.readyState ?? 0) >= 1)
           pendingSeek.current = false;
-        }
       },
       async play() {
         const video = videos.current[active.current];
         pendingPlay.current = true;
         if (video && video.readyState >= 1) {
           pendingPlay.current = false;
+          for (const sourceMode of ["side", "top"] as const) {
+            const reference = videos.current[sourceMode];
+            if (!reference || reference.readyState < 1) continue;
+            reference.playbackRate = video.playbackRate;
+            reference.muted = true;
+            if (Math.abs(reference.currentTime - video.currentTime) > 0.2)
+              reference.currentTime = video.currentTime;
+            void reference.play().catch(() => {});
+          }
           await video.play();
         }
       },
       pause() {
         pendingPlay.current = false;
-        videos.current[active.current]?.pause();
+        for (const video of Object.values(videos.current)) video?.pause();
       },
       async switchMode(requestedMode) {
         if (switching.current) return;
@@ -128,7 +138,7 @@ export default forwardRef<
         latest.current.onLoading(true);
         latest.current.onError("");
         // Keep the displayed video's last frame mounted while the other seeks.
-        source.pause();
+        for (const video of Object.values(videos.current)) video?.pause();
         controller.current?.abort();
         const transaction = new AbortController();
         controller.current = transaction;
@@ -168,7 +178,18 @@ export default forwardRef<
           target.currentTime = time;
           await waitForFrame(target, transaction.signal);
           if (transaction.signal.aborted) return;
-          if (resume) await target.play();
+          if (resume) {
+            for (const sourceMode of ["side", "top"] as const) {
+              const reference = videos.current[sourceMode];
+              if (!reference || reference.readyState < 1) continue;
+              reference.playbackRate = playbackRate;
+              reference.muted = true;
+              if (Math.abs(reference.currentTime - time) > 0.2)
+                reference.currentTime = time;
+              void reference.play().catch(() => {});
+            }
+            await target.play();
+          }
           if (transaction.signal.aborted) {
             target.pause();
             return;
@@ -206,37 +227,45 @@ export default forwardRef<
   );
 
   return (
-    <>
-      {(["original", "overlay", "side", "top"] as const).map((sourceMode) => (
-        <video
-          key={sourceMode}
-          ref={(element) => {
-            if (element) videos.current[sourceMode] = element;
-          }}
-          data-mode={sourceMode}
-          data-active={mode === sourceMode}
-          aria-hidden={mode !== sourceMode}
-          src={`/media/${props.slug}/${sourceMode}.mp4`}
-          controlsList="nodownload"
-          playsInline
-          preload="metadata"
-          muted={mode !== sourceMode || props.muted}
-          onClick={props.onClick}
-          onLoadedMetadata={(event) => {
-            if (sourceMode !== active.current || switching.current) return;
-            const video = event.currentTarget;
-            if (pendingSeek.current) {
-              video.currentTime = desiredTime.current;
-              pendingSeek.current = false;
-            }
-            if (pendingPlay.current) {
-              pendingPlay.current = false;
-              void video.play().catch((reason: DOMException) => {
-                if (reason.name !== "AbortError")
-                  latest.current.onError("Press play to start the recording.");
-              });
-            }
-          }}
+    <div className="synchronized-views">
+      <div className="fpv-view">
+        {(["original", "overlay"] as const).map((sourceMode) => (
+          <video
+            key={sourceMode}
+            ref={(element) => {
+              if (element) videos.current[sourceMode] = element;
+            }}
+            data-mode={sourceMode}
+            data-active={mode === sourceMode}
+            aria-hidden={mode !== sourceMode}
+            src={`/media/${props.slug}/${sourceMode}.mp4`}
+            controlsList="nodownload"
+            playsInline
+            preload="metadata"
+            muted={mode !== sourceMode || props.muted}
+            onClick={props.onClick}
+            onLoadedMetadata={(event) => {
+              if (sourceMode !== active.current || switching.current) return;
+              const video = event.currentTarget;
+              if (pendingSeek.current) {
+                video.currentTime = desiredTime.current;
+                pendingSeek.current = false;
+              }
+              if (pendingPlay.current) {
+                pendingPlay.current = false;
+                for (const referenceMode of ["side", "top"] as const) {
+                  const reference = videos.current[referenceMode];
+                  if (!reference || reference.readyState < 1) continue;
+                  reference.currentTime = video.currentTime;
+                  reference.playbackRate = video.playbackRate;
+                  void reference.play().catch(() => {});
+                }
+                void video.play().catch((reason: DOMException) => {
+                  if (reason.name !== "AbortError")
+                    latest.current.onError("Press play to start the recording.");
+                });
+              }
+            }}
           onPlay={() => {
             if (sourceMode === active.current && !switching.current)
               props.onPlaying(true);
@@ -287,10 +316,55 @@ export default forwardRef<
             )
               return;
             desiredTime.current = event.currentTarget.currentTime;
+            for (const referenceMode of ["side", "top"] as const) {
+              const reference = videos.current[referenceMode];
+              if (
+                reference &&
+                reference.readyState >= 1 &&
+                Math.abs(reference.currentTime - desiredTime.current) > 0.35
+              )
+                reference.currentTime = desiredTime.current;
+            }
             props.onTime(desiredTime.current);
           }}
-        />
-      ))}
-    </>
+          />
+        ))}
+        <span className="camera-label">FPV</span>
+        {props.caption && (
+          <p className="action-caption" aria-label="Current step">
+            {props.caption}
+          </p>
+        )}
+      </div>
+      <div className="reference-views">
+        {(["side", "top"] as const).map((sourceMode) => (
+          <div className="reference-view" key={sourceMode}>
+            <video
+              ref={(element) => {
+                if (element) videos.current[sourceMode] = element;
+              }}
+              data-mode={sourceMode}
+              src={`/media/${props.slug}/${sourceMode}.mp4`}
+              controlsList="nodownload"
+              playsInline
+              preload="metadata"
+              muted
+              aria-label={`${sourceMode === "side" ? "Side" : "Top"} view`}
+              onClick={props.onClick}
+              onLoadedMetadata={(event) => {
+                event.currentTarget.currentTime = desiredTime.current;
+                event.currentTarget.playbackRate =
+                  videos.current[active.current]?.playbackRate ?? 1;
+                if (!videos.current[active.current]?.paused)
+                  void event.currentTarget.play().catch(() => {});
+              }}
+            />
+            <span className="camera-label">
+              {sourceMode === "side" ? "Side" : "Top"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 });

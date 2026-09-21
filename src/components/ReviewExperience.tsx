@@ -167,9 +167,8 @@ export default function ReviewExperience({
             {beat === "challenge" && (
               <>
                 <div className="intro-challenge-copy">
-                  <p className="intro-kicker">The challenge</p>
                   <h1 ref={heading} tabIndex={-1} id="intro-heading">
-                    Build a dilution series in duplicate.
+                    Remember what you did?
                   </h1>
                   <ol className="intro-protocol">
                     <li>
@@ -193,10 +192,6 @@ export default function ReviewExperience({
                       <em>Water only</em>
                     </li>
                   </ol>
-                  <p className="intro-protocol-note">
-                    Eight tubes · QR top for Calibration 3 · two replicates ·
-                    0.45 mL BSA stock available
-                  </p>
                   <button
                     className="intro-continue"
                     onClick={() => advance("results")}
