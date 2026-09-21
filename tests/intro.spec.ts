@@ -80,6 +80,20 @@ test("new login shows welcome, challenge, results and why once, preserving deep 
   await expect(
     page.locator(".intro-results .result-metrics > div").last(),
   ).toHaveCSS("opacity", "1");
+  await page.getByRole("button", { name: "See on leaderboard" }).click();
+  const leaderboard = page.getByRole("dialog", {
+    name: "Calibration challenge leaderboard",
+  });
+  await expect(leaderboard).toBeVisible();
+  await expect(leaderboard.locator("img")).toHaveAttribute(
+    "src",
+    "/media/genentech/leaderboard.png",
+  );
+  await leaderboard.getByRole("button", { name: "Close leaderboard" }).click();
+  await expect(leaderboard).not.toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Your results." }),
+  ).toBeVisible();
   await page.screenshot({ path: "/tmp/transfyr-intro-results.png" });
   const before = (await page.context().cookies()).find(
     (cookie) => cookie.name === "transfyr_genentech",

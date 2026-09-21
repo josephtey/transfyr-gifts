@@ -6,6 +6,7 @@ import type { Session } from "../lib/types";
 import Review from "./Review";
 import ResultMetrics from "./ResultMetrics";
 import ExitButton from "./ExitButton";
+import LeaderboardDialog from "./LeaderboardDialog";
 
 const beats = ["welcome", "challenge", "results", "why"] as const;
 type Beat = (typeof beats)[number];
@@ -216,13 +217,21 @@ export default function ReviewExperience({
                   Your results.
                 </h1>
                 <ResultMetrics result={session.analysis.result} />
-                <button
-                  className="intro-continue"
-                  onClick={() => advance("why")}
-                  disabled={leaving}
-                >
-                  Take a closer look <ArrowRight size={17} aria-hidden="true" />
-                </button>
+                <div className="intro-results-actions">
+                  {leaderboardImage && (
+                    <LeaderboardDialog
+                      imageSrc={`/media/${slug}/${leaderboardImage}`}
+                    />
+                  )}
+                  <button
+                    className="intro-continue"
+                    onClick={() => advance("why")}
+                    disabled={leaving}
+                  >
+                    Take a closer look{" "}
+                    <ArrowRight size={17} aria-hidden="true" />
+                  </button>
+                </div>
               </>
             )}
             {beat === "why" && (

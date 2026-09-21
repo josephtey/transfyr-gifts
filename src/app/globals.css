@@ -2859,6 +2859,19 @@ time,
   animation: intro-scale-reveal 1000ms cubic-bezier(0.16, 1, 0.3, 1) 300ms both;
   transform-origin: left;
 }
+.intro-results-actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 44px;
+}
+.intro-results-actions .intro-continue {
+  margin-top: 0;
+}
+.intro-results-actions .leaderboard-button {
+  min-height: 48px;
+  padding: 0 4px;
+}
 .intro-why {
   text-align: center;
 }
@@ -2990,6 +3003,12 @@ time,
   }
   .intro-results .result-metric-title {
     font-size: 12px;
+  }
+  .intro-results-actions {
+    align-items: flex-start;
+    flex-direction: column-reverse;
+    gap: 12px;
+    margin-top: 36px;
   }
   .intro-challenge {
     display: flex;
