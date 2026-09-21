@@ -121,6 +121,11 @@ test("the result explanation selects all visible findings and replaces the fine-
   page,
 }) => {
   await login(page);
+  const performance = page.getByRole("button", { name: "How did you do?" });
+  await expect(performance).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".evidence-pane .result-metrics")).toHaveCount(0);
+  await performance.click();
+  await expect(performance).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator(".result-metrics")).toContainText(
     `+${data.analysis.result.closestAboveTargetPercent}%`,
   );
@@ -231,6 +236,7 @@ test("sidebar results open the protected leaderboard without changing the video 
 }) => {
   await login(page);
   const card = page.locator(".evidence-pane .result-card");
+  await card.getByRole("button", { name: "How did you do?" }).click();
   const trigger = card.getByRole("button", { name: "See on leaderboard" });
   const dialog = page.getByRole("dialog", {
     name: "Calibration challenge leaderboard",

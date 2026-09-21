@@ -2195,11 +2195,34 @@ time,
 
 /* Result-led analysis: grouped operations within protocol stages. */
 .result-card {
-  padding: 20px 22px 10px;
+  padding: 0;
   margin-bottom: 20px;
   border: 1px solid #ffffff0b;
   border-radius: 10px;
   background: #ffffff02;
+}
+.result-card-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 18px;
+  color: #e4e9e2;
+  font-size: 13px;
+  text-align: left;
+}
+.result-card-toggle svg {
+  color: #7f8a82;
+  transition: transform 180ms ease;
+}
+.result-card-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.result-card-content {
+  padding: 4px 22px 10px;
+  border-top: 1px solid #ffffff08;
+  animation: leaderboard-appear 180ms ease-out both;
 }
 .result-metrics {
   display: flex;
@@ -2416,7 +2439,10 @@ time,
     left: 50%;
   }
   .result-card {
-    padding: 18px 16px 8px;
+    padding: 0;
+  }
+  .result-card-content {
+    padding: 4px 16px 8px;
   }
   .result-metrics {
     justify-content: space-between;
