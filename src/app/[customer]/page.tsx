@@ -1,9 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { customers } from "../../lib/customers";
-import { verifySession, cookieName } from "../../lib/auth";
+import { readSession, cookieName } from "../../lib/auth";
 import { loadSession } from "../../lib/session";
-import Review from "../../components/Review";
+import ReviewExperience from "../../components/ReviewExperience";
 export const dynamic = "force-dynamic";
 export default async function CustomerPage({
   params,
@@ -12,18 +12,17 @@ export default async function CustomerPage({
 }) {
   const { customer } = await params;
   if (!customers[customer]) notFound();
-  if (
-    !(await verifySession(
-      (await cookies()).get(cookieName(customer))?.value,
-      customer,
-    ))
-  )
-    redirect(`/${customer}/access`);
+  const access = await readSession(
+    (await cookies()).get(cookieName(customer))?.value,
+    customer,
+  );
+  if (!access) redirect(`/${customer}/access`);
   return (
-    <Review
+    <ReviewExperience
       session={await loadSession(customer)}
       slug={customer}
       leaderboardImage={customers[customer].leaderboardImage}
+      showIntro={!access.introComplete}
     />
   );
 }

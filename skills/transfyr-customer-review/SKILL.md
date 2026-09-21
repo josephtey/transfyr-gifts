@@ -34,7 +34,7 @@ Keep the current grouped step title at the top of the video independently of fin
 
 Preserve original/perception timestamp, play/pause state, speed, volume, mute and contextual clip boundaries. Keep both media elements mounted. Hold the displayed decoded frame until the alternate source has sought and decoded the matching timestamp, then crossfade. Ignore inactive-video events; they must never reset the playhead or scroll position. Guard repeated switches, handle delayed metadata and failure, and respect reduced motion. Inspect the timebases before assuming the recordings align.
 
-The access screen contains only a password input, submitted with Enter; show a failed entry through the field. Do not add company/customer branding, download, copy-link or logout/exit controls. Disable attachment-download requests.
+The access screen contains only a password input, submitted with Enter; show a failed entry through the field. Do not add company/customer branding, download or copy-link controls. A quiet Exit button signs out to the password input, whose border and focus outline are hidden while focused. Disable attachment-download requests.
 
 ### Preserve an earlier version
 
@@ -54,7 +54,7 @@ Before pushing, inspect repository visibility. Keep customer evidence and custom
 
 ## Verify and hand over
 
-Verify desktop and narrow layouts with actual media; test login failure/success, a deep link through login, seeking, active captions, mode switching while paused and playing, clip boundaries, freeze-frame close/focus, removed download/share/exit controls, password submission with Enter, and denied direct media requests. Check the production URL too: a local pass does not prove hosted range requests or private storage work.
+Verify desktop and narrow layouts with actual media; test login failure/success, a deep link through login, seeking, active captions, mode switching while paused and playing, clip boundaries, freeze-frame close/focus, removed download/share controls, working Exit/sign-out, password submission with Enter, and denied direct media requests. Check the production URL too: a local pass does not prove hosted range requests or private storage work.
 
 Deployment requires the user's authorization. Honor the requested account and scope. Explicitly verify the linked project and owner; never fall back to an organizational/team account when a personal account is requested. Keep custom domains as explicit configuration; do not claim a subdomain exists before DNS and Vercel configuration are completed.
 

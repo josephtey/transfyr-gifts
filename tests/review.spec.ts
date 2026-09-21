@@ -13,6 +13,13 @@ const data: Session = JSON.parse(readFileSync("src/data/session.json", "utf8"));
 const records = data.analysis.stages.flatMap((stage) => stage.records);
 const activeVideo = (page: import("@playwright/test").Page) =>
   page.locator('video[data-active="true"]');
+async function finishIntro(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "See my results" }).click();
+  await page.getByRole("button", { name: "Take a closer look" }).click();
+  await expect(
+    page.getByRole("heading", { name: "What happened?" }),
+  ).toBeVisible();
+}
 async function login(
   page: import("@playwright/test").Page,
   path = "/genentech",
@@ -22,6 +29,7 @@ async function login(
     .getByLabel("Access password")
     .fill(process.env.CUSTOMER_PASSWORD_GENENTECH!);
   await page.getByLabel("Access password").press("Enter");
+  await finishIntro(page);
   await expect(
     page.getByRole("heading", { name: "What happened?" }),
   ).toBeVisible();
@@ -83,6 +91,7 @@ test("password protects the review and media; explicit timestamps survive login"
     .getByLabel("Access password")
     .fill(process.env.CUSTOMER_PASSWORD_GENENTECH!);
   await page.getByLabel("Access password").press("Enter");
+  await finishIntro(page);
   await expect
     .poll(() =>
       activeVideo(page).evaluate((v: HTMLVideoElement) => v.currentTime),

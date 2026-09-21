@@ -6,14 +6,16 @@ export async function proxy(request: NextRequest) {
   const hostCustomer = customerForHost(request.headers.get("host") || "");
   const parts = path.split("/").filter(Boolean);
   const apiMedia = parts[0] === "api" && parts[1] === "media";
+  const apiIntro = parts[0] === "api" && parts[1] === "intro";
   const media = parts[0] === "media" || parts[0] === "frames" || apiMedia;
-  const customer = apiMedia
-    ? parts[2]
-    : media
-      ? parts[1]
-      : customers[parts[0]]
-        ? parts[0]
-        : hostCustomer;
+  const customer =
+    apiMedia || apiIntro
+      ? parts[2]
+      : media
+        ? parts[1]
+        : customers[parts[0]]
+          ? parts[0]
+          : hostCustomer;
   if (path === "/" && !hostCustomer)
     return NextResponse.redirect(new URL("/genentech", request.url));
   if (
@@ -41,14 +43,17 @@ export async function proxy(request: NextRequest) {
       customer,
     ))
   ) {
-    if (media)
+    if (media || apiIntro)
       return new NextResponse("Authentication required", {
         status: 401,
         headers: { "Cache-Control": "private, no-store" },
       });
     const url = new URL(`/${customer}/access`, request.url);
     url.searchParams.set("next", path + request.nextUrl.search);
-    return NextResponse.redirect(url);
+    const response = NextResponse.redirect(url);
+    response.cookies.delete(cookieName(customer));
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
   }
   if (media && request.nextUrl.searchParams.has("download"))
     return new NextResponse("Not found", { status: 404 });

@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
   if (form.get("logout")) {
     const response = NextResponse.redirect(target, 303);
     response.cookies.delete(cookieName(customer));
+    response.headers.set("Cache-Control", "no-store");
     return response;
   }
   const password = process.env[config.passwordEnv];

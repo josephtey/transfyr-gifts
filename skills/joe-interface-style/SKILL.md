@@ -41,7 +41,9 @@ An established palette: canvas `#121615`, text around `#e2e7e1`, errors `#f08080
 
 For video review, keep the current grouped step title at the top of the image, rather than a verbose atomic-action caption. Hide it during annotation gaps rather than showing filler. Put the selected finding and full description below the player and scrubber; do not obscure controls. Clicking a finding plays its evidence. Avoid dismiss controls on this persistent context.
 
-For the private gift/review experience, the access page is just a centered password input submitted with Enter. The customer view has no logo, customer-name banner, download menu, copy-link control or exit button. These are preferences for that focused experience, not blanket rules for every application Joe uses.
+For the private gift/review experience, the access page is just a centered password input submitted with Enter. The customer view has no logo, customer-name banner, download menu or copy-link control. A quiet Exit button signs out to the password screen. Keep the password field border and focus outline hidden while focused. These are preferences for that focused experience, not blanket rules for every application Joe uses.
+
+When an introductory story is requested, use a short, restrained sequence: welcome and reflection, results, then “Why?” revealing the evidence. Let the reader choose when to advance through substantive copy; remember completion per login rather than replaying on every refresh. Respect reduced motion and preserve keyboard focus.
 
 When Joe wants to keep an earlier design, preserve an accessible version with its own frozen data instead of silently replacing it. This is an instruction to preserve work, not permission to publish private content.
 

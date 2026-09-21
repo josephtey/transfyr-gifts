@@ -2157,6 +2157,41 @@ time,
 .access-form input[aria-invalid="true"]::placeholder {
   color: var(--error);
 }
+.access-form input[type="password"]:focus {
+  border-color: transparent;
+  outline: none;
+  box-shadow: none;
+  background: #ffffff06;
+}
+.video-tools {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.exit-form {
+  margin: 0;
+}
+.exit-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 0;
+  color: #929f93;
+  font-size: 11px;
+}
+.exit-button:hover {
+  color: #e1e7da;
+}
+.intro-exit {
+  position: absolute;
+  top: 24px;
+  right: 30px;
+}
+.intro-beat h1[tabindex="-1"]:focus-visible,
+.analysis-review .log-heading h2[tabindex="-1"]:focus-visible {
+  outline: none;
+}
 
 /* Result-led analysis: grouped operations within protocol stages. */
 .result-card {
@@ -2544,5 +2579,263 @@ time,
   }
   .percentile-caption b {
     white-space: nowrap;
+  }
+}
+
+/* A brief, deliberate introduction before the first review in a login session. */
+.review-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 48px 32px 88px;
+  overflow-y: auto;
+  background: radial-gradient(ellipse at 50% 30%, #1d2420 0%, #121615 65%);
+}
+.intro-beat {
+  width: min(800px, 100%);
+  margin: auto;
+  animation: intro-enter 650ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+.intro-beat.is-leaving {
+  opacity: 0;
+  transform: translateY(-14px);
+  animation: none;
+}
+.intro-greeting {
+  margin: 0 0 32px;
+  color: #a6b0a8;
+  font-size: clamp(14px, 1.4vw, 18px);
+  line-height: 1.7;
+}
+.intro-beat h1 {
+  margin: 0;
+  color: #edf0e7;
+  font-size: clamp(44px, 6vw, 82px);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.055em;
+  outline: none;
+}
+.intro-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.09em;
+}
+.intro-line > span {
+  display: block;
+  animation: intro-line-reveal 850ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.intro-line + .intro-line > span {
+  animation-delay: 100ms;
+}
+.intro-continue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  min-height: 48px;
+  margin-top: 44px;
+  padding: 12px 22px;
+  border: 1px solid #c5d1be30;
+  border-radius: 30px;
+  color: #e1e7da;
+  background: #dceac205;
+  font-size: 13px;
+}
+.intro-continue:hover {
+  background: #dceac20e;
+  border-color: #c5d1be60;
+}
+.intro-continue svg {
+  transition: transform 160ms ease;
+}
+.intro-continue:hover svg {
+  transform: translateX(3px);
+}
+.intro-results h1 {
+  font-size: clamp(38px, 4vw, 52px);
+}
+.intro-results .result-metrics {
+  margin-top: 54px;
+  gap: 48px 70px;
+}
+.intro-results .result-metric-title {
+  color: #a6b0a8;
+  font-size: 14px;
+  margin-bottom: 18px;
+}
+.intro-results .result-measurement {
+  display: block;
+}
+.intro-results .result-measurement strong {
+  display: block;
+  font-size: clamp(48px, 6vw, 76px);
+  letter-spacing: -0.055em;
+  font-weight: 400;
+}
+.intro-results .result-measurement span {
+  display: block;
+  margin-top: 10px;
+  font-size: 14px;
+}
+.intro-results .percentile-scale {
+  margin-top: 32px;
+}
+.intro-results .result-metrics > div {
+  animation: intro-enter 750ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+}
+.intro-results .result-metrics > div + div {
+  animation-delay: 260ms;
+}
+.intro-results .percentile-track {
+  animation: intro-scale-reveal 1000ms cubic-bezier(0.16, 1, 0.3, 1) 300ms both;
+  transform-origin: left;
+}
+.intro-why {
+  text-align: center;
+}
+.intro-why h1 {
+  font-size: clamp(110px, 16vw, 196px);
+  animation: intro-why-reveal 1000ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.intro-reveal-line {
+  width: min(420px, 80%);
+  height: 1px;
+  margin: 40px auto 0;
+  overflow: hidden;
+}
+.intro-reveal-line > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, #c7d3bb, transparent);
+  animation: intro-scale-reveal 1500ms cubic-bezier(0.16, 1, 0.3, 1) 250ms both;
+}
+.intro-retry p {
+  color: #a6b0a8;
+  font-size: 13px;
+  margin-top: 28px;
+}
+.intro-retry .intro-continue {
+  margin-top: 14px;
+}
+.intro-progress {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  display: flex;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+.intro-progress > span {
+  width: 28px;
+  height: 2px;
+  border-radius: 2px;
+  background: #ffffff16;
+  transition:
+    background 300ms ease,
+    width 300ms ease;
+}
+.intro-progress > span[data-current="true"] {
+  width: 48px;
+  background: #c7d3bb;
+}
+.intro-progress > span[data-past="true"] {
+  background: #c7d3bb60;
+}
+.review-arrival[data-revealed="false"] {
+  visibility: hidden;
+}
+.review-arrival[data-revealed="true"] {
+  animation: review-arrive 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes intro-enter {
+  from {
+    opacity: 0;
+    translate: 0 22px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@keyframes intro-line-reveal {
+  from {
+    transform: translateY(115%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes intro-scale-reveal {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes intro-why-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.94);
+    letter-spacing: -0.1em;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    letter-spacing: -0.055em;
+  }
+}
+@keyframes review-arrive {
+  from {
+    opacity: 0;
+    clip-path: inset(4% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+}
+@media (max-width: 600px) {
+  .review-intro {
+    padding: 36px 24px 76px;
+  }
+  .intro-greeting {
+    margin-bottom: 26px;
+  }
+  .intro-desktop-break {
+    display: none;
+  }
+  .intro-results .result-metrics {
+    margin-top: 36px;
+    gap: 24px;
+  }
+  .intro-results .result-measurement strong {
+    font-size: 43px;
+  }
+  .intro-results .result-measurement span {
+    font-size: 12px;
+  }
+  .intro-results .percentile-scale {
+    margin-top: 24px;
+  }
+  .intro-results .result-metric-title {
+    font-size: 12px;
+  }
+  .intro-continue {
+    margin-top: 36px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .review-intro *,
+  .review-arrival[data-revealed="true"] {
+    animation: none !important;
+    transition: none !important;
   }
 }

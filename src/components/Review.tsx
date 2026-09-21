@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { Session, Issue, RecordStep, CoarseRecord } from "../lib/types";
 import ResultCard from "./ResultCard";
+import ExitButton from "./ExitButton";
 import EvidenceSection from "./EvidenceSection";
 import SynchronizedVideo, {
   type SynchronizedVideoHandle,
@@ -255,6 +256,7 @@ export default function Review({
       if (
         switching ||
         document.querySelector("dialog[open]") ||
+        document.querySelector(".review-intro") ||
         (event.target as HTMLElement).closest("button,input,a,summary") ||
         event.metaKey ||
         event.ctrlKey ||
@@ -284,20 +286,23 @@ export default function Review({
         <section className="video-column" aria-label="Challenge recording">
           <div className="video-label">
             <span>Calibration challenge</span>
-            <button
-              className={`perception-toggle ${mode === "overlay" ? "enabled" : ""}`}
-              disabled={switching || loading}
-              aria-busy={switching}
-              aria-pressed={mode === "overlay"}
-              aria-label="Toggle perception overlay"
-              onClick={() => void video.current?.switchMode()}
-            >
-              <Scan size={14} />
-              <span>Perception</span>
-              <span className="toggle-track">
-                <span />
-              </span>
-            </button>
+            <div className="video-tools">
+              <button
+                className={`perception-toggle ${mode === "overlay" ? "enabled" : ""}`}
+                disabled={switching || loading}
+                aria-busy={switching}
+                aria-pressed={mode === "overlay"}
+                aria-label="Toggle perception overlay"
+                onClick={() => void video.current?.switchMode()}
+              >
+                <Scan size={14} />
+                <span>Perception</span>
+                <span className="toggle-track">
+                  <span />
+                </span>
+              </button>
+              <ExitButton slug={slug} />
+            </div>
           </div>
           <div ref={player} className="player">
             <div className="video-surface" aria-busy={switching}>
